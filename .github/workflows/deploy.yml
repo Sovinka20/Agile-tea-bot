@@ -23,10 +23,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run migrations and populate database
-      run: |
-        python create_tables.py
-
     - name: Run Telegram Bot
       run: |
         nohup python bot.py &
