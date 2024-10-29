@@ -88,6 +88,9 @@ def button(call):
     # Удаление сообщения с клавиатурой
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
 
+    # После отображения данных, снова отображаем кнопки для выбора чая
+    start(call.message)
+
 # Запуск бота
 bot.polling()
 
