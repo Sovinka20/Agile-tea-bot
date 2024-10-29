@@ -5,6 +5,7 @@ from datetime import datetime
 import time
 from dotenv import load_dotenv
 import os
+import logging
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -13,9 +14,17 @@ load_dotenv()
 DATABASE_URL = os.getenv('DATABASE_URL')
 TOKEN = os.getenv('TOKEN')
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+
 # Подключение к PostgreSQL
-conn = psycopg2.connect(DATABASE_URL)
-cur = conn.cursor()
+try:
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    logging.info("Успешное подключение к базе данных")
+except Exception as e:
+    logging.error(f"Ошибка подключения к базе данных: {e}")
+    exit()
 
 # Функция для получения содержимого по id из таблицы bot_content
 def get_content_by_id(content_id):
@@ -82,7 +91,9 @@ def button(call):
 # Запуск бота
 bot.polling()
 
-# Закрытие соединения с базой данных после завершения работы бота
-cursor.close()
-conn.close()
+# Задержка в одну минуту (60 секунд)
+time.sleep(60)
 
+# Закрытие соединения с базой данных после завершения работы бота
+cur.close()
+conn.close()
