@@ -79,15 +79,10 @@ def button(call):
     # Удаление сообщения с клавиатурой
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
 
-# Запуск бота с увеличенным временем ожидания и обработкой исключений
-def main():
-    while True:
-        try:
-            bot.polling(none_stop=True, timeout=30, long_polling_timeout=30)
-        except Exception as e:
-            print(f"Ошибка: {e}")
-            print("Переподключение через 5 секунд...")
-            time.sleep(5)
+# Запуск бота
+bot.polling()
 
-if __name__ == '__main__':
-    main()
+# Закрытие соединения с базой данных после завершения работы бота
+cursor.close()
+conn.close()
+
