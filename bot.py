@@ -6,6 +6,7 @@ import time
 from dotenv import load_dotenv
 import os
 import logging
+import requests
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -152,16 +153,36 @@ def button(call):
 def unknown_command(message):
     bot.send_message(message.chat.id, "Простите, такой команды нет. Используйте /help для получения справки.")
 
-# Запуск бота
-bot.polling()
+# Запуск бота с повторными попытками
+def start_polling():
+    while True:
+        try:
+            bot.polling(none_stop=True)
+        except requests.exceptions.ConnectionError as e:
+            logging.error(f"Ошибка подключения: {e}")
+            time.sleep(10)  # Подождать 10 секунд перед повторной попыткой
+        except requests.exceptions.ReadTimeout as e:
+            logging.error(f"Ошибка таймаута чтения: {e}")
+            time.sleep(10)  # Подождать 10 секунд перед повторной попыткой
+        except requests.exceptions.Timeout as e:
+            logging.error(f"Ошибка таймаута: {e}")
+            time.sleep(10)  # Подождать 10 секунд перед повторной попыткой
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Ошибка запроса: {e}")
+            time.sleep(10)  # Подождать 10 секунд перед повторной попыткой
+        except telebot.apihelper.ApiTelegramException as e:
+            if e.error_code == 502:
+                logging.warning(f"Ошибка 502 Bad Gateway: {e}")
+                time.sleep(10)  # Подождать 10 секунд перед повторной попыткой
+            else:
+                logging.error(f"Ошибка API Telegram: {e}")
+                time.sleep(10)  # Подождать 10 секунд перед повторной попыткой
+        except Exception as e:
+            logging.error(f"Непредвиденная ошибка: {e}")
+            time.sleep(10)  # Подождать 10 секунд перед повторной попыткой
 
-# Бесконечный цикл с задержкой
-while True:
-    try:
-        time.sleep(10)
-    except Exception as e:
-        logging.error(f"Ошибка в бесконечном цикле: {e}")
-        break  # Выход из цикла в случае ошибки
+# Запуск опроса
+start_polling()
 
 # Закрытие соединения с базой данных после завершения работы бота
 try:
