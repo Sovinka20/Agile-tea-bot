@@ -1,12 +1,14 @@
-import psycopg2
-import telebot
-from telebot import types
-from datetime import datetime
-import time
-from dotenv import load_dotenv
-import os
 import logging
+import os
+import time
+from datetime import datetime
+
+import psycopg2
 import requests
+import telebot
+from dotenv import load_dotenv
+from telebot import types
+import pandas as pd
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -15,10 +17,25 @@ load_dotenv()
 DATABASE_URL = os.getenv('DATABASE_URL')
 TOKEN = os.getenv('TOKEN')
 ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
+MODER_USER_ID0 = int(os.getenv('MODER_USER_ID0'))
+MODER_USER_ID1 = int(os.getenv('MODER_USER_ID1'))
+MODER_USER_ID2 = int(os.getenv('MODER_USER_ID2'))
+MODER_USER_ID3 = int(os.getenv('MODER_USER_ID3'))
+MODER_USER_ID4 = int(os.getenv('MODER_USER_ID4'))
+MODER_USER_ID5 = int(os.getenv('MODER_USER_ID5'))
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Подключение к PostgreSQL
+try:
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    logging.info("Успешное подключение к базе данных")
+except Exception as e:
+    logging.error(f"Ошибка подключения к базе данных: {e}")
+    exit()
 
 # Функция для получения содержимого по id из таблицы bot_content
 def get_content_by_id(content_id):
@@ -52,85 +69,10 @@ def add_user_data(user_id, username, select_tea):
     except Exception as e:
         logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
 
-# Функция для создания таблицы unique_users и добавления данных
-def setup_unique_users_table():
-    try:
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                # Создание таблицы unique_users
-                create_table_query = """
-                CREATE TABLE unique_users (
-                    id BIGSERIAL PRIMARY KEY,
-                    user_id BIGINT,
-                    username VARCHAR(255),
-                    count_select_tea INT,
-                    date_start DATE,
-                    date_last DATE,
-                    age VARCHAR(255) DEFAULT 'default',
-                    gender VARCHAR(255) DEFAULT 'default',
-                    evaluation INT DEFAULT 0,
-                    count_achievements INT DEFAULT 0
-                );
-                """
-                cur.execute(create_table_query)
-
-                # Заполнение таблицы unique_users данными из таблицы users
-                insert_data_query = """
-                INSERT INTO unique_users (user_id, username, count_select_tea, date_start, date_last)
-                SELECT
-                    u.user_id,
-                    u.username,
-                    COUNT(u.select_tea) AS count_select_tea,
-                    MIN(u.date::DATE) AS date_start,
-                    MAX(u.date::DATE) AS date_last
-                FROM
-                    users u
-                GROUP BY
-                    u.user_id, u.username;
-                """
-                cur.execute(insert_data_query)
-                conn.commit()
-    except Exception as e:
-        logging.error(f"Ошибка при настройке таблицы unique_users: {e}")
-
-# Функция для создания таблиц achievements и user_achievements
-def setup_achievements_tables():
-    try:
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                # Создание таблицы achievements
-                create_achievements_table_query = """
-                CREATE TABLE achievements (
-                    achievement_id SERIAL PRIMARY KEY,
-                    achievement_name VARCHAR(255) NOT NULL,
-                    description TEXT
-                );
-                """
-                cur.execute(create_achievements_table_query)
-
-                # Создание таблицы user_achievements
-                create_user_achievements_table_query = """
-                CREATE TABLE user_achievements (
-                    user_achievement_id SERIAL PRIMARY KEY,
-                    user_id BIGINT REFERENCES unique_users(id),
-                    achievement_id INT REFERENCES achievements(achievement_id),
-                    date_achieved DATE
-                );
-                """
-                cur.execute(create_user_achievements_table_query)
-
-                # Заполнение таблицы achievements данными
-                insert_achievements_data_query = """
-                INSERT INTO achievements (achievement_name, description)
-                VALUES
-                    ('First Tea Selection', 'User made their first tea selection'),
-                    ('Tea Enthusiast', 'User selected tea 10 times'),
-                    ('Tea Master', 'User selected tea 100 times');
-                """
-                cur.execute(insert_achievements_data_query)
-                conn.commit()
-    except Exception as e:
-        logging.error(f"Ошибка при настройке таблиц achievements и user_achievements: {e}")
+# Функция для проверки прав доступа
+def is_allowed_user(user_id):
+    allowed_users = [ADMIN_USER_ID, MODER_USER_ID0, MODER_USER_ID1, MODER_USER_ID2, MODER_USER_ID3, MODER_USER_ID4, MODER_USER_ID5]
+    return user_id in allowed_users
 
 # Создание экземпляра бота
 bot = telebot.TeleBot(TOKEN)
@@ -205,13 +147,48 @@ def help(message):
 def add_content(message):
     try:
         if message.from_user.id == ADMIN_USER_ID:
-            setup_unique_users_table()
-            setup_achievements_tables()
+            # setup_unique_users_table()
+            # setup_achievements_tables()
             bot.send_message(message.chat.id, "Таблицы unique_users, achievements и user_achievements успешно созданы и заполнены данными.")
         else:
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
     except Exception as e:
         logging.error(f"Ошибка при добавлении новых столбцов и данных: {e}")
+        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+
+# Обработчик команды /get_users_data
+@bot.message_handler(commands=['get_users_data'])
+def get_users_data(message):
+    try:
+        if not is_allowed_user(message.from_user.id):
+            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+            return
+
+        # Получение данных из таблицы users
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    SELECT user_id, username, date, select_tea, age, gender FROM users
+                ''')
+                rows = cur.fetchall()
+                columns = [desc[0] for desc in cur.description]
+
+        # Создание DataFrame из полученных данных
+        df = pd.DataFrame(rows, columns=columns)
+
+        # Путь для сохранения результата в формате XLSX
+        output_file = 'parsed_data.xlsx'
+
+        # Сохранение данных в XLSX файл
+        df.to_excel(output_file, index=False)
+
+        # Отправка файла пользователю
+        with open(output_file, 'rb') as file:
+            bot.send_document(message.chat.id, file)
+
+        logging.info(f"Данные успешно сохранены в {output_file} и отправлены пользователю {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Ошибка при получении данных пользователей: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик нажатия на кнопку
