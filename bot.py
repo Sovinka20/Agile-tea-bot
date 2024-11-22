@@ -8,7 +8,11 @@ import requests
 import telebot
 from dotenv import load_dotenv
 from telebot import types
-import pandas as pd
+
+from admin_commands import add_content, get_users_data
+# Импорт функций из других файлов
+from commands import (button, help, new_tea, start, try_delete_message,
+                      unknown_command)
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -88,137 +92,14 @@ def create_keyboard():
         keyboard.row(*buttons[i:i+3])
     return keyboard
 
-# Функция для попытки удаления сообщения с проверкой
-def try_delete_message(chat_id, message_type):
-    if chat_id in message_ids and message_type in message_ids[chat_id]:
-        message_id = message_ids[chat_id][message_type]
-        try:
-            bot.delete_message(chat_id=chat_id, message_id=message_id)
-            del message_ids[chat_id][message_type]
-        except telebot.apihelper.ApiTelegramException as e:
-            if e.error_code == 400 and 'message to delete not found' in e.description:
-                logging.warning(f"Сообщение уже удалено или не найдено: {e.error_code} - {e.description} (chat_id: {chat_id}, message_type: {message_type}, message_id: {message_id})")
-                del message_ids[chat_id][message_type]  # Удаляем запись из словаря, чтобы избежать повторных попыток удаления
-            else:
-                logging.error(f"Ошибка удаления сообщения: {e.error_code} - {e.description} (chat_id: {chat_id}, message_type: {message_type}, message_id: {message_id})")
-    else:
-        logging.warning(f"Сообщение типа '{message_type}' для чата {chat_id} не найдено в словаре message_ids.")
-
-# Обработчик команды /start
-@bot.message_handler(commands=['start'])
-def start(message):
-    try:
-        try_delete_message(message.chat.id, 'keyboard')
-        keyboard = types.InlineKeyboardMarkup()
-        bot.send_message(message.chat.id, 'Добро пожаловать в чай-бот принципов Agile!', reply_markup=keyboard)
-        message_ids[message.chat.id] = {'command': message.message_id}
-        try_delete_message(message.chat.id, 'command')
-    except Exception as e:
-        logging.error(f"Ошибка в обработчике команды /start: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Обработчик команды /new_tea
-@bot.message_handler(commands=['new_tea'])
-def new_tea(message):
-    try:
-        try_delete_message(message.chat.id, 'keyboard')
-        keyboard = create_keyboard()
-        sent_message = bot.send_message(message.chat.id, 'Выберите номер:', reply_markup=keyboard)
-        message_ids[message.chat.id] = {'command': message.message_id, 'keyboard': sent_message.message_id}
-        try_delete_message(message.chat.id, 'command')
-    except Exception as e:
-        logging.error(f"Ошибка в обработчике команды /new_tea: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Обработчик команды /help
-@bot.message_handler(commands=['help'])
-def help(message):
-    try:
-        try_delete_message(message.chat.id, 'keyboard')
-        bot.send_message(message.chat.id, 'Этот бот помогает изучать принципы Agile. Используйте команду /new_tea для начала.')
-        message_ids[message.chat.id] = {'command': message.message_id}
-        try_delete_message(message.chat.id, 'command')
-    except Exception as e:
-        logging.error(f"Ошибка в обработчике команды /help: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Обработчик команды /add_content
-@bot.message_handler(commands=['add_content'])
-def add_content(message):
-    try:
-        if message.from_user.id == ADMIN_USER_ID:
-            # setup_unique_users_table()
-            # setup_achievements_tables()
-            bot.send_message(message.chat.id, "Таблицы unique_users, achievements и user_achievements успешно созданы и заполнены данными.")
-        else:
-            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-    except Exception as e:
-        logging.error(f"Ошибка при добавлении новых столбцов и данных: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Обработчик команды /get_users_data
-@bot.message_handler(commands=['get_users_data'])
-def get_users_data(message):
-    try:
-        if not is_allowed_user(message.from_user.id):
-            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-            return
-
-        # Получение данных из таблицы users
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                cur.execute('''
-                    SELECT user_id, username, date, select_tea, age, gender FROM users
-                ''')
-                rows = cur.fetchall()
-                columns = [desc[0] for desc in cur.description]
-
-        # Создание DataFrame из полученных данных
-        df = pd.DataFrame(rows, columns=columns)
-
-        # Путь для сохранения результата в формате XLSX
-        output_file = 'parsed_data.xlsx'
-
-        # Сохранение данных в XLSX файл
-        df.to_excel(output_file, index=False)
-
-        # Отправка файла пользователю
-        with open(output_file, 'rb') as file:
-            bot.send_document(message.chat.id, file)
-
-        logging.info(f"Данные успешно сохранены в {output_file} и отправлены пользователю {message.from_user.id}")
-    except Exception as e:
-        logging.error(f"Ошибка при получении данных пользователей: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Обработчик нажатия на кнопку
-@bot.callback_query_handler(func=lambda call: True)
-def button(call):
-    try:
-        content_id = int(call.data)
-        content, image = get_content_by_id(content_id)
-
-        if content:
-            formatted_content = f"<b>{content}</b>"
-            if image:
-                bot.send_photo(call.message.chat.id, image, caption=formatted_content, parse_mode='HTML')
-            else:
-                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=formatted_content, parse_mode='HTML')
-            add_user_data(call.from_user.id, call.from_user.username, content_id)
-        else:
-            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="Содержимое не найдено.")
-
-        try_delete_message(call.message.chat.id, 'keyboard')
-        try_delete_message(call.message.chat.id, 'command')
-        new_tea(call.message)
-    except Exception as e:
-        logging.error(f"Ошибка в обработчике нажатия на кнопку: {e}")
-        bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Обработчик неопознанных команд
-@bot.message_handler(func=lambda message: True)
-def unknown_command(message):
-    bot.send_message(message.chat.id, "Простите, такой команды нет. Используйте /help для получения справки.")
+# Регистрация обработчиков команд
+bot.message_handler(commands=['start'])(lambda message: start(message, bot, try_delete_message))
+bot.message_handler(commands=['new_tea'])(lambda message: new_tea(message, bot, try_delete_message))
+bot.message_handler(commands=['help'])(lambda message: help(message, bot, try_delete_message))
+bot.message_handler(commands=['add_content'])(lambda message: add_content(message, bot, try_delete_message))
+bot.message_handler(commands=['get_users_data'])(lambda message: get_users_data(message, bot, try_delete_message))
+bot.callback_query_handler(func=lambda call: True)(lambda call: button(call, bot, get_content_by_id, add_user_data, try_delete_message))
+bot.message_handler(func=lambda message: True)(lambda message: unknown_command(message, bot, try_delete_message))
 
 # Запуск бота с повторными попытками
 def start_polling():
