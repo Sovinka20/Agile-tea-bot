@@ -1,3 +1,5 @@
+# bot.py
+
 import logging
 import os
 import time
@@ -10,8 +12,9 @@ from dotenv import load_dotenv
 from telebot import types
 
 # Импорт функций из других файлов
-from commands import start, new_tea, help, unknown_command, button, try_delete_message
+from commands import start, new_tea, help, unknown_command, button
 from admin_commands import add_content, get_users_data, get_unique_users_data
+from message_utils import try_delete_message, save_message_id
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -80,26 +83,38 @@ def is_allowed_user(user_id):
 # Создание экземпляра бота
 bot = telebot.TeleBot(TOKEN)
 
-# Словарь для хранения идентификаторов сообщений с командами и клавиатурой
-message_ids = {}
-
-# Функция для создания клавиатуры с кнопками
-def create_keyboard():
-    keyboard = types.InlineKeyboardMarkup()
-    buttons = [types.InlineKeyboardButton(str(i), callback_data=str(i)) for i in range(1, 13)]
-    for i in range(0, len(buttons), 3):
-        keyboard.row(*buttons[i:i+3])
-    return keyboard
-
 # Регистрация обработчиков команд
-bot.message_handler(commands=['start'])(lambda message: start(message, bot, try_delete_message))
-bot.message_handler(commands=['new_tea'])(lambda message: new_tea(message, bot, try_delete_message))
-bot.message_handler(commands=['help'])(lambda message: help(message, bot, try_delete_message))
-bot.message_handler(commands=['add_content'])(lambda message: add_content(message, bot, try_delete_message))
-bot.message_handler(commands=['get_users_data'])(lambda message: get_users_data(message, bot, try_delete_message))
-bot.message_handler(commands=['get_unique_users_data'])(lambda message: get_unique_users_data(message, bot, try_delete_message))
-bot.callback_query_handler(func=lambda call: True)(lambda call: button(call, bot, get_content_by_id, add_user_data, try_delete_message))
-bot.message_handler(func=lambda message: True)(lambda message: unknown_command(message, bot, try_delete_message))
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    start(message, bot, try_delete_message, save_message_id)
+
+@bot.message_handler(commands=['new_tea'])
+def handle_new_tea(message):
+    new_tea(message, bot, try_delete_message, save_message_id)
+
+@bot.message_handler(commands=['help'])
+def handle_help(message):
+    help(message, bot, try_delete_message, save_message_id)
+
+@bot.message_handler(commands=['add_content'])
+def handle_add_content(message):
+    add_content(message, bot, try_delete_message, save_message_id)
+
+@bot.message_handler(commands=['get_users_data'])
+def handle_get_users_data(message):
+    get_users_data(message, bot, try_delete_message, save_message_id)
+
+@bot.message_handler(commands=['get_unique_users_data'])
+def handle_get_unique_users_data(message):
+    get_unique_users_data(message, bot, try_delete_message, save_message_id)
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback_query(call):
+    button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id)
+
+@bot.message_handler(func=lambda message: True)
+def handle_unknown_command(message):
+    unknown_command(message, bot, try_delete_message, save_message_id)
 
 # Запуск бота с повторными попытками
 def start_polling():

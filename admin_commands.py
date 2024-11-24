@@ -1,19 +1,14 @@
+# admin_commands.py
+
 import logging
 import os
 
 import pandas as pd
 import psycopg2
-import telebot  # Добавлен импорт модуля telebot
+import telebot
 from dotenv import load_dotenv
 
-# Словарь для хранения идентификаторов сообщений с командами и клавиатурой
-message_ids = {}
-
-def try_delete_message(bot, chat_id, message_id):
-    try:
-        bot.delete_message(chat_id, message_id)
-    except Exception as e:
-        logging.error(f"Ошибка при удалении сообщения: {e}")
+from message_utils import save_message_id, try_delete_message
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -37,7 +32,7 @@ def is_allowed_user(user_id):
     return user_id in allowed_users
 
 # Обработчик команды /add_content
-def add_content(message, bot, try_delete_message):
+def add_content(message, bot, try_delete_message, save_message_id):
     try:
         if message.from_user.id == ADMIN_USER_ID:
             # setup_unique_users_table()
@@ -46,21 +41,23 @@ def add_content(message, bot, try_delete_message):
         else:
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
         
-        # Сохраняем идентификатор сообщения с командой
-        message_ids[message.chat.id] = message.message_id
-        
-        try_delete_message(bot, message.chat.id, message_ids[message.chat.id])
+        save_message_id(message.chat.id, 'command', message.message_id)
+        try_delete_message(bot, message.chat.id, 'command')
     except Exception as e:
         logging.error(f"Ошибка при добавлении новых столбцов и данных: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /get_users_data
-def get_users_data(message, bot, try_delete_message):
+def get_users_data(message, bot, try_delete_message, save_message_id):
     try:
         if not is_allowed_user(message.from_user.id):
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-            try_delete_message(bot, message.chat.id, message_ids[message.chat.id])
+            save_message_id(message.chat.id, 'command', message.message_id)
+            try_delete_message(bot, message.chat.id, 'command')
             return
+
+        save_message_id(message.chat.id, 'command', message.message_id)
+        try_delete_message(bot, message.chat.id, 'command')
 
         # Получение данных из таблицы users
         with psycopg2.connect(DATABASE_URL) as conn:
@@ -85,22 +82,21 @@ def get_users_data(message, bot, try_delete_message):
             bot.send_document(message.chat.id, file)
 
         logging.info(f"Данные успешно сохранены в {output_file} и отправлены пользователю {message.from_user.id}")
-        
-        # Сохраняем идентификатор сообщения с командой
-        message_ids[message.chat.id] = message.message_id
-        
-        try_delete_message(bot, message.chat.id, message_ids[message.chat.id])
     except Exception as e:
         logging.error(f"Ошибка при получении данных пользователей: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /get_unique_users_data
-def get_unique_users_data(message, bot, try_delete_message):
+def get_unique_users_data(message, bot, try_delete_message, save_message_id):
     try:
         if not is_allowed_user(message.from_user.id):
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-            try_delete_message(bot, message.chat.id, message_ids[message.chat.id])
+            save_message_id(message.chat.id, 'command', message.message_id)
+            try_delete_message(bot, message.chat.id, 'command')
             return
+
+        save_message_id(message.chat.id, 'command', message.message_id)
+        try_delete_message(bot, message.chat.id, 'command')
 
         # Получение данных из таблицы unique_users
         with psycopg2.connect(DATABASE_URL) as conn:
@@ -125,11 +121,6 @@ def get_unique_users_data(message, bot, try_delete_message):
             bot.send_document(message.chat.id, file)
 
         logging.info(f"Данные успешно сохранены в {output_file} и отправлены пользователю {message.from_user.id}")
-        
-        # Сохраняем идентификатор сообщения с командой
-        message_ids[message.chat.id] = message.message_id
-        
-        try_delete_message(bot, message.chat.id, message_ids[message.chat.id])
     except Exception as e:
         logging.error(f"Ошибка при получении данных уникальных пользователей: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
