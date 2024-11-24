@@ -9,10 +9,9 @@ import telebot
 from dotenv import load_dotenv
 from telebot import types
 
-from admin_commands import add_content, get_users_data
 # Импорт функций из других файлов
-from commands import (button, help, new_tea, start, try_delete_message,
-                      unknown_command)
+from commands import start, new_tea, help, unknown_command, button, try_delete_message
+from admin_commands import add_content, get_users_data, get_unique_users_data
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -98,6 +97,7 @@ bot.message_handler(commands=['new_tea'])(lambda message: new_tea(message, bot, 
 bot.message_handler(commands=['help'])(lambda message: help(message, bot, try_delete_message))
 bot.message_handler(commands=['add_content'])(lambda message: add_content(message, bot, try_delete_message))
 bot.message_handler(commands=['get_users_data'])(lambda message: get_users_data(message, bot, try_delete_message))
+bot.message_handler(commands=['get_unique_users_data'])(lambda message: get_unique_users_data(message, bot, try_delete_message))
 bot.callback_query_handler(func=lambda call: True)(lambda call: button(call, bot, get_content_by_id, add_user_data, try_delete_message))
 bot.message_handler(func=lambda message: True)(lambda message: unknown_command(message, bot, try_delete_message))
 
