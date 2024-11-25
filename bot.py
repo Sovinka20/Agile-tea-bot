@@ -11,10 +11,10 @@ import telebot
 from dotenv import load_dotenv
 from telebot import types
 
+from admin_commands import add_content, get_unique_users_data, get_users_data
 # Импорт функций из других файлов
-from commands import start, new_tea, help, unknown_command, button
-from admin_commands import add_content, get_users_data, get_unique_users_data
-from message_utils import try_delete_message, save_message_id
+from commands import button, help, my_commands, new_tea, start, unknown_command
+from message_utils import save_message_id, try_delete_message
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -87,34 +87,67 @@ bot = telebot.TeleBot(TOKEN)
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     start(message, bot, try_delete_message, save_message_id)
+    # try_delete_message(bot, message.chat.id, 'my_commands')
 
 @bot.message_handler(commands=['new_tea'])
 def handle_new_tea(message):
     new_tea(message, bot, try_delete_message, save_message_id)
+    # try_delete_message(bot, message.chat.id, 'my_commands')
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
     help(message, bot, try_delete_message, save_message_id)
+    # try_delete_message(bot, message.chat.id, 'my_commands')
 
 @bot.message_handler(commands=['add_content'])
 def handle_add_content(message):
     add_content(message, bot, try_delete_message, save_message_id)
+    # try_delete_message(bot, message.chat.id, 'my_commands')
 
 @bot.message_handler(commands=['get_users_data'])
 def handle_get_users_data(message):
     get_users_data(message, bot, try_delete_message, save_message_id)
+    # try_delete_message(bot, message.chat.id, 'my_commands')
 
 @bot.message_handler(commands=['get_unique_users_data'])
 def handle_get_unique_users_data(message):
     get_unique_users_data(message, bot, try_delete_message, save_message_id)
+    # try_delete_message(bot, message.chat.id, 'my_commands')
 
+@bot.message_handler(commands=['my_commands'])
+def handle_my_commands_command(message):
+    my_commands(message, bot, try_delete_message, save_message_id, is_allowed_user)
+
+# Обработчик колбэков
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
-    button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id)
+    try:
+        if call.data == 'get_users_data':
+            get_users_data(call.message, bot, try_delete_message, save_message_id)
+        elif call.data == 'get_unique_users_data':
+            get_unique_users_data(call.message, bot, try_delete_message, save_message_id)
+        elif call.data == 'start':
+            start(call.message, bot, try_delete_message, save_message_id)
+        elif call.data == 'new_tea':
+            new_tea(call.message, bot, try_delete_message, save_message_id)
+        elif call.data == 'help':
+            help(call.message, bot, try_delete_message, save_message_id)
+        elif call.data == 'cancel':
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            try_delete_message(bot, call.message.chat.id, 'my_commands')
+        else:
+            button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id)
+
+        # Удаление сообщения с кнопками после обработки колбэка
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        try_delete_message(bot, call.message.chat.id, 'my_commands')
+    except Exception as e:
+        logging.error(f"Ошибка при обработке колбэка: {e}")
 
 @bot.message_handler(func=lambda message: True)
 def handle_unknown_command(message):
     unknown_command(message, bot, try_delete_message, save_message_id)
+    try_delete_message(bot, message.chat.id, 'my_commands')
 
 # Запуск бота с повторными попытками
 def start_polling():
