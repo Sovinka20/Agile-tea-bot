@@ -82,6 +82,18 @@ button_to_field = {
     'eval_3': 'evaluation',
     'eval_4': 'evaluation',
     'eval_5': 'evaluation',
+    'tea_1': 'favorite_tea',
+    'tea_2': 'favorite_tea',
+    'tea_3': 'favorite_tea',
+    'tea_4': 'favorite_tea',
+    'tea_5': 'favorite_tea',
+    'tea_6': 'favorite_tea',
+    'tea_7': 'favorite_tea',
+    'tea_8': 'favorite_tea',
+    'tea_9': 'favorite_tea',
+    'tea_10': 'favorite_tea',
+    'tea_11': 'favorite_tea',
+    'tea_12': 'favorite_tea',
     'cancel': None  # Отмена не требует обновления данных
 }
 
@@ -98,6 +110,18 @@ button_to_value = {
     'eval_3': 3,
     'eval_4': 4,
     'eval_5': 5,
+    'tea_1': 1,
+    'tea_2': 2,
+    'tea_3': 3,
+    'tea_4': 4,
+    'tea_5': 5,
+    'tea_6': 6,
+    'tea_7': 7,
+    'tea_8': 8,
+    'tea_9': 9,
+    'tea_10': 10,
+    'tea_11': 11,
+    'tea_12': 12,
     'cancel': None  # Отмена не требует обновления данных
 }
 
@@ -196,6 +220,11 @@ def handle_tea_random(message):
     from commands import tea_random
     tea_random(message, bot, try_delete_message, save_message_id)
 
+@bot.message_handler(commands=['my_achievements'])
+def handle_my_achievements(message):
+    from commands import my_achievements
+    my_achievements(message, bot, try_delete_message, save_message_id)
+
 # Обработчик колбэков
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
@@ -212,7 +241,7 @@ def handle_callback_query(call):
             new_tea(call.message, bot, try_delete_message, save_message_id)
         elif call.data == 'tea_random':
             from commands import tea_random
-            tea_random(call, call.message, bot, try_delete_message, save_message_id)
+            tea_random(call.message, bot, try_delete_message, save_message_id)
         elif call.data == 'help':
             from commands import help
             help(call.message, bot, try_delete_message, save_message_id)
@@ -221,7 +250,7 @@ def handle_callback_query(call):
             try_delete_message(bot, call.message.chat.id, 'command')
         elif call.data == 'my_profile':
             from commands import my_profile
-            my_profile(call, call.message, bot, try_delete_message, save_message_id)
+            my_profile(call.message, bot, try_delete_message, save_message_id)
         elif call.data == 'edit_profile':
             from commands import edit_profile
             edit_profile(call.message, bot, try_delete_message, save_message_id)
@@ -238,6 +267,9 @@ def handle_callback_query(call):
         elif call.data == 'create_evaluation':
             from commands import create_evaluation
             create_evaluation(call, call.message, bot, try_delete_message, save_message_id)
+        elif call.data == 'my_achievements':
+            from commands import my_achievements
+            my_achievements(call.message, bot, try_delete_message, save_message_id)
             
         elif call.data.startswith('age_'):
             update_user_data(call.message, call.from_user.id, call.data)

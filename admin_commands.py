@@ -32,6 +32,14 @@ def add_achievement(cur, user_id, achievement_id):
         VALUES (%s, %s, %s)
     ''', (user_id, achievement_id, current_date))
 
+# Функция для проверки наличия достижения у пользователя
+def has_achievement(cur, user_id, achievement_id):
+    cur.execute('''
+        SELECT COUNT(*) FROM user_achievements
+        WHERE user_id = %s AND achievement_id = %s
+    ''', (user_id, achievement_id))
+    return cur.fetchone()[0] > 0
+
 # Обработчик команды /add_content
 def add_content(message, bot, try_delete_message, save_message_id):
     try:
@@ -39,39 +47,41 @@ def add_content(message, bot, try_delete_message, save_message_id):
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
             return
 
-        TEST_USER_ID = 1615170105
-
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                add_achievement(cur, TEST_USER_ID, 1)
-                bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - КУСОЧЕК САХАРА!")
-                sugar_file_path = os.path.join('a_piece_of_sugar.gif')
-                if os.path.exists(sugar_file_path):
-                    with open(sugar_file_path, 'rb') as file:
-                        bot.send_document(TEST_USER_ID, file)
-                else:
-                    logging.error(f"Файл '{sugar_file_path}' не найден.")
+                # Получаем всех пользователей
+                cur.execute('SELECT user_id FROM users')
+                users = cur.fetchall()
 
-                cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (TEST_USER_ID,))
-                count = cur.fetchone()[0]
+                for user in users:
+                    user_id = user[0]
 
-                if count >= 12:
-                    add_achievement(cur, TEST_USER_ID, 2)
-                    bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - Чайный лист! Вы выбрали чаи 12 раз!")
-                    tea_leaf_file_path = os.path.join('tea_leaf.jpg')
-                    if os.path.exists(tea_leaf_file_path):
-                        with open(tea_leaf_file_path, 'rb') as file:
-                            bot.send_document(TEST_USER_ID, file)
-                    else:
-                        logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
+                    # Добавляем первое достижение, если его еще нет
+                    if not has_achievement(cur, user_id, 1):
+                        add_achievement(cur, user_id, 1)
+                        bot.send_message(message.chat.id, "Перерасчёт 1-го достижения запущен...")
+                    # Проверяем, сколько раз пользователь был добавлен в базу данных
+                    cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (user_id,))
+                    count = cur.fetchone()[0]
 
-        bot.send_message(message.chat.id, "Таблицы unique_users, achievements и user_achievements успешно созданы и заполнены данными.")
+                    # Добавляем достижения в зависимости от количества, если их еще нет
+                    if count >= 12 and not has_achievement(cur, user_id, 2):
+                        add_achievement(cur, user_id, 2)
+                        bot.send_message(message.chat.id, "Перерасчёт 2-го достижения запущен...")
+
+                    if count >= 20 and not has_achievement(cur, user_id, 3):
+                        add_achievement(cur, user_id, 3)
+                        bot.send_message(message.chat.id, "Перерасчёт 3-го достижения запущен...")
+
+        bot.send_message(message.chat.id, "Достижения успешно пересчитаны для всех пользователей.")
         save_message_id(message.chat.id, 'command', message.message_id)
         try_delete_message(bot, message.chat.id, 'command')
 
     except Exception as e:
-        logging.exception("Ошибка при добавлении новых столбцов и данных")
+        logging.exception("Ошибка при пересчете достижений")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+
+        
 
 # Общая функция для получения и отправки данных
 def fetch_and_send_data(call, message, bot, query, output_file):

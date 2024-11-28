@@ -32,6 +32,56 @@ def get_content_by_id(content_id):
         return (None, None)
 
 
+# Обработчик команды /my_achievements
+def my_achievements(message, bot, try_delete_message, save_message_id):
+    try:
+        try_delete_message(bot, message.chat.id, 'keyboard')
+        save_message_id(message.chat.id, 'command', message.message_id)
+        try_delete_message(bot, message.chat.id, 'command')
+
+        TEST_USER_ID = message.from_user.id
+
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                # add_achievement(cur, TEST_USER_ID, 1)
+                bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - КУСОЧЕК САХАРА!")
+                sugar_file_path = os.path.join('a_piece_of_sugar.gif')
+                if os.path.exists(sugar_file_path):
+                    with open(sugar_file_path, 'rb') as file:
+                        bot.send_document(TEST_USER_ID, file)
+                else:
+                    logging.error(f"Файл '{sugar_file_path}' не найден.")
+
+                cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (TEST_USER_ID,))
+                count = cur.fetchone()[0]
+
+                if count >= 12:
+                    # add_achievement(cur, TEST_USER_ID, 2)
+                    bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - Чайный лист! Вы выбрали чаи 12 раз!")
+                    tea_leaf_file_path = os.path.join('tea_leaf.gif')
+                    if os.path.exists(tea_leaf_file_path):
+                        with open(tea_leaf_file_path, 'rb') as file:
+                            bot.send_document(TEST_USER_ID, file)
+                    else:
+                        logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
+
+                if count >= 20:
+                    # add_achievement(cur, TEST_USER_ID, 2)
+                    bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - Чайный пакетик! Вы выбрали чай 20 раз!")
+                    tea_leaf_file_path = os.path.join('tea bag.gif')
+                    if os.path.exists(tea_leaf_file_path):
+                        with open(tea_leaf_file_path, 'rb') as file:
+                            bot.send_document(TEST_USER_ID, file)
+                    else:
+                        logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
+
+        # save_message_id(message.chat.id, 'command', message.message_id)
+        # try_delete_message(bot, message.chat.id, 'command')
+
+    except Exception as e:
+        logging.exception("Ошибка при добавлении новых столбцов и данных")
+        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+
 
 # Функция для добавления данных в таблицу users
 def add_user_data(user_id, username, select_tea):
@@ -141,8 +191,8 @@ def my_commands(message, bot, try_delete_message, save_message_id, is_allowed_us
             keyboard.add(types.InlineKeyboardButton("Случайный чай", callback_data='tea_random'))
             keyboard.add(types.InlineKeyboardButton("Помощь", callback_data='help'))
             # Кнопки для администраторов и модераторов
-            keyboard.add(types.InlineKeyboardButton("All users", callback_data='get_users_data'))
-            keyboard.add(types.InlineKeyboardButton("Users", callback_data='get_unique_users_data'))
+            keyboard.add(types.InlineKeyboardButton("Статистика (All users)", callback_data='get_users_data'))
+            keyboard.add(types.InlineKeyboardButton("Статистика (Users)", callback_data='get_unique_users_data'))
         else:
             # Кнопки для обычных пользователей
             keyboard.add(types.InlineKeyboardButton("Профиль", callback_data='my_profile'))
@@ -255,7 +305,8 @@ def create_favorite_tea(call, message, bot, try_delete_message, save_message_id)
                     SELECT id, tea_name FROM bot_content WHERE id != 0
                 ''')
                 teas = cur.fetchall()
-                buttons = [types.InlineKeyboardButton(tea[1], callback_data=f'tea_{tea[0]}') for tea in teas]
+                logging.error(f"Значение: {teas}")
+                buttons = [types.InlineKeyboardButton(f"{tea[0]}.{tea[1]}", callback_data=f'tea_{tea[0]}') for tea in teas]
                 buttons.append(types.InlineKeyboardButton("Отмена", callback_data='cancel'))
                 for button in buttons:
                     keyboard.add(button)
@@ -289,7 +340,7 @@ def create_evaluation(call, message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /my_profile
-def my_profile(call, message, bot, try_delete_message, save_message_id):
+def my_profile(message, bot, try_delete_message, save_message_id):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -299,9 +350,9 @@ def my_profile(call, message, bot, try_delete_message, save_message_id):
                 cur.execute('''
                     SELECT age, gender, favorite_tea, evaluation, count_achievements
                     FROM unique_users WHERE user_id = %s
-                ''', (call.from_user.id,))
+                ''', (message.from_user.id,))
                 user_data = cur.fetchone()
-                logging.error(f"Данные: {user_data, call.from_user.id}")
+                logging.error(f"Данные: {user_data, message.from_user.id}")
 
                 if user_data:
                     age, gender, favorite_tea, evaluation, count_achievements = user_data
@@ -330,11 +381,12 @@ def my_profile(call, message, bot, try_delete_message, save_message_id):
 
 
 # Обработчик команды /tea_random
-def tea_random(call, message, bot, try_delete_message, save_message_id):
+def tea_random(message, bot, try_delete_message, save_message_id):
+    logging.error(f"Проверка: {message}")
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
-        # save_message_id(message.chat.id, 'command', message.message_id)
-        # try_delete_message(bot, message.chat.id, 'command')
+        save_message_id(abs(message.chat.id), 'command', message.message_id)
+        try_delete_message(bot, message.chat.id, 'command')
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 cur.execute('''
@@ -355,9 +407,11 @@ def tea_random(call, message, bot, try_delete_message, save_message_id):
                         bot.send_photo(message.chat.id, image, caption=formatted_content, parse_mode='HTML')
                     else:
                         bot.send_message(message.chat.id, formatted_content, parse_mode='HTML')
-                    
+                    # save_message_id(message.chat.id, 'command', message.message_id)
+                    # try_delete_message(bot, message.chat.id, 'command')
+
                     # Сохранение записи в таблицу users
-                    add_user_data(call.from_user.id, call.from_user.username, content_id)
+                    add_user_data(message.from_user.id, message.from_user.username, content_id)
                 else:
                     bot.send_message(message.chat.id, "Содержимое не найдено.")
     except Exception as e:
