@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from telebot import types
 
 from admin_commands import add_content, get_unique_users_data, get_users_data
+
 from message_utils import save_message_id, try_delete_message
 
 # Загрузка переменных окружения из файла .env
@@ -38,7 +39,7 @@ except Exception as e:
 def get_content_by_id(content_id):
     try:
         with conn.cursor() as cur:
-            cur.execute('SELECT content, image, tea_name, quote_agile, question, id FROM bot_content WHERE id = %s', (content_id,))
+            cur.execute('SELECT content, image, tea_name, quote_agile, question, link, id FROM bot_content WHERE id = %s', (content_id,))
             result = cur.fetchone()
             return result if result else (None, None)
     except Exception as e:
@@ -59,6 +60,19 @@ def add_user_data(user_id, username, select_tea):
                 VALUES (%s, %s, %s, %s, %s, %s)
             ''', (user_id, username, date, select_tea, 0, 'u'))
             conn.commit()
+    except Exception as e:
+        logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
+
+# Общая функция для добавления достижений
+def add_select_all_data_tea(user_id, select_id):
+    date = get_current_date()
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+            INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
+            VALUES (%s, %s, %s)
+        ''', (user_id, select_id, date))
+        conn.commit()
     except Exception as e:
         logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
 
@@ -170,14 +184,17 @@ def handle_help(message):
 
 @bot.message_handler(commands=['add_content'])
 def handle_add_content(message):
+    from admin_commands import add_content
     add_content(message, bot, try_delete_message, save_message_id)
 
 @bot.message_handler(commands=['get_users_data'])
 def handle_get_users_data(message):
+    from admin_commands import get_users_data
     get_users_data(message, bot, try_delete_message, save_message_id)
 
 @bot.message_handler(commands=['get_unique_users_data'])
 def handle_get_unique_users_data(message):
+    from admin_commands import get_unique_users_data
     get_unique_users_data(message, bot, try_delete_message, save_message_id)
 
 @bot.message_handler(commands=['my_commands'])
@@ -219,6 +236,8 @@ def handle_my_profile(message):
 def handle_tea_random(message):
     from commands import tea_random
     tea_random(message, bot, try_delete_message, save_message_id)
+
+
 
 @bot.message_handler(commands=['my_achievements'])
 def handle_my_achievements(message):
@@ -289,7 +308,7 @@ def handle_callback_query(call):
             handle_more_tea_callback(call)
         else:
             from commands import button
-            button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id)
+            button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id, add_select_all_data_tea)
 
         bot.delete_message(call.message.chat.id, call.message.message_id)
         try_delete_message(bot, call.message.chat.id, 'command')
@@ -301,7 +320,6 @@ def handle_unknown_command(message):
     from commands import unknown_command
     unknown_command(message, bot, try_delete_message, save_message_id)
     try_delete_message(bot, message.chat.id, 'command')
-    
 
 # Запуск бота с повторными попытками
 def start_polling():

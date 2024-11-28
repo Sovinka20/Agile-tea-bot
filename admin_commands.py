@@ -40,6 +40,23 @@ def has_achievement(cur, user_id, achievement_id):
     ''', (user_id, achievement_id))
     return cur.fetchone()[0] > 0
 
+# Функция для обновления полей count_select_tea и count_achievements
+def update_user_counts(cur, user_id):
+    # Подсчет строк в таблице users для данного user_id
+    cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (user_id,))
+    count_select_tea = cur.fetchone()[0]
+
+    # Подсчет строк в таблице user_achievements для данного user_id
+    cur.execute('SELECT COUNT(*) FROM user_achievements WHERE user_id = %s', (user_id,))
+    count_achievements = cur.fetchone()[0]
+
+    # Обновление полей в таблице unique_users
+    cur.execute('''
+        UPDATE unique_users
+        SET count_select_tea = %s, count_achievements = %s
+        WHERE user_id = %s
+    ''', (count_select_tea, count_achievements, user_id))
+
 # Обработчик команды /add_content
 def add_content(message, bot, try_delete_message, save_message_id):
     try:
@@ -49,8 +66,8 @@ def add_content(message, bot, try_delete_message, save_message_id):
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                # Получаем всех пользователей
-                cur.execute('SELECT user_id FROM users')
+                # Получаем всех пользователей из таблицы unique_users
+                cur.execute('SELECT user_id FROM unique_users')
                 users = cur.fetchall()
 
                 for user in users:
@@ -59,7 +76,7 @@ def add_content(message, bot, try_delete_message, save_message_id):
                     # Добавляем первое достижение, если его еще нет
                     if not has_achievement(cur, user_id, 1):
                         add_achievement(cur, user_id, 1)
-                        bot.send_message(message.chat.id, "Перерасчёт 1-го достижения запущен...")
+
                     # Проверяем, сколько раз пользователь был добавлен в базу данных
                     cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (user_id,))
                     count = cur.fetchone()[0]
@@ -67,22 +84,21 @@ def add_content(message, bot, try_delete_message, save_message_id):
                     # Добавляем достижения в зависимости от количества, если их еще нет
                     if count >= 12 and not has_achievement(cur, user_id, 2):
                         add_achievement(cur, user_id, 2)
-                        bot.send_message(message.chat.id, "Перерасчёт 2-го достижения запущен...")
 
                     if count >= 20 and not has_achievement(cur, user_id, 3):
                         add_achievement(cur, user_id, 3)
-                        bot.send_message(message.chat.id, "Перерасчёт 3-го достижения запущен...")
 
-        bot.send_message(message.chat.id, "Достижения успешно пересчитаны для всех пользователей.")
+                    # Обновляем поля count_select_tea и count_achievements
+                    update_user_counts(cur, user_id)
+
+        bot.send_message(message.chat.id, "Достижения и счетчики успешно пересчитаны для всех пользователей.")
         save_message_id(message.chat.id, 'command', message.message_id)
         try_delete_message(bot, message.chat.id, 'command')
 
     except Exception as e:
-        logging.exception("Ошибка при пересчете достижений")
+        logging.exception("Ошибка при пересчете достижений и счетчиков")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
         
-
 # Общая функция для получения и отправки данных
 def fetch_and_send_data(call, message, bot, query, output_file):
     try:

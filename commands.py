@@ -21,16 +21,14 @@ except Exception as e:
 
 # Функция для получения содержимого по id из таблицы bot_content
 def get_content_by_id(content_id):
-
     try:
         with conn.cursor() as cur:
-            cur.execute('SELECT content, image, tea_name, quote_agile, question, id FROM bot_content WHERE id = %s', (content_id,))
+            cur.execute('SELECT content, image, tea_name, quote_agile, question, link, id FROM bot_content WHERE id = %s', (content_id,))
             result = cur.fetchone()
             return result if result else (None, None)
     except Exception as e:
         logging.error(f"Ошибка при выполнении SQL-запроса: {e}")
         return (None, None)
-
 
 # Обработчик команды /my_achievements
 def my_achievements(message, bot, try_delete_message, save_message_id):
@@ -43,7 +41,6 @@ def my_achievements(message, bot, try_delete_message, save_message_id):
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                # add_achievement(cur, TEST_USER_ID, 1)
                 bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - КУСОЧЕК САХАРА!")
                 sugar_file_path = os.path.join('a_piece_of_sugar.gif')
                 if os.path.exists(sugar_file_path):
@@ -56,7 +53,6 @@ def my_achievements(message, bot, try_delete_message, save_message_id):
                 count = cur.fetchone()[0]
 
                 if count >= 12:
-                    # add_achievement(cur, TEST_USER_ID, 2)
                     bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - Чайный лист! Вы выбрали чаи 12 раз!")
                     tea_leaf_file_path = os.path.join('tea_leaf.gif')
                     if os.path.exists(tea_leaf_file_path):
@@ -66,7 +62,6 @@ def my_achievements(message, bot, try_delete_message, save_message_id):
                         logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
 
                 if count >= 20:
-                    # add_achievement(cur, TEST_USER_ID, 2)
                     bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - Чайный пакетик! Вы выбрали чай 20 раз!")
                     tea_leaf_file_path = os.path.join('tea bag.gif')
                     if os.path.exists(tea_leaf_file_path):
@@ -75,13 +70,9 @@ def my_achievements(message, bot, try_delete_message, save_message_id):
                     else:
                         logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
 
-        # save_message_id(message.chat.id, 'command', message.message_id)
-        # try_delete_message(bot, message.chat.id, 'command')
-
     except Exception as e:
         logging.exception("Ошибка при добавлении новых столбцов и данных")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
 
 # Функция для добавления данных в таблицу users
 def add_user_data(user_id, username, select_tea):
@@ -123,7 +114,6 @@ def new_tea(message, bot, try_delete_message, save_message_id):
         keyboard = create_keyboard()
         sent_message = bot.send_message(message.chat.id, 'Выберите номер:', reply_markup=keyboard)
         save_message_id(message.chat.id, 'command', message.message_id)
-        save_message_id(message.chat.id, 'keyboard', sent_message.message_id)
         try_delete_message(bot, message.chat.id, 'command')
     except Exception as e:
         logging.error(f"Ошибка в обработчике команды /new_tea: {e}")
@@ -140,75 +130,128 @@ def help(message, bot, try_delete_message, save_message_id):
         logging.error(f"Ошибка в обработчике команды /help: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
+
+# Общая функция для добавления достижений
+def add_select_all_data_tea(cur, user_id, select_id):
+    
+    user_id, select_id, date
+    date = get_current_date()
+    cur.execute('''
+        INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
+        VALUES (%s, %s, %s)
+    ''', (user_id, select_id, date))
+
 # Обработчик нажатия на кнопку
-def button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id):
+def button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id, add_select_all_data_tea):
     try:
         if call.data.isdigit():
             content_id = int(call.data)
-            content, image, tea_name, quote_agile, question, id = get_content_by_id(content_id)
+            content_data = get_content_by_id(content_id)
+            if len(content_data) != 7:
+                logging.error(f"Ожидалось 7 значений, получено {len(content_data)}")
+                bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+                return
+
+            content, image, tea_name, quote_agile, question, link, id = content_data
                 
             if content:
                 formatted_content = f"""
+<i>"{content}"</i>
+"""
+                # Создаем клавиатуру с кнопками
+                keyboard = types.InlineKeyboardMarkup()
+                
+                # Кнопка для изменения formatted_content
+                change_button = types.InlineKeyboardButton(text=question, callback_data=f"change_{content_id}")
+                keyboard.add(change_button)
+                
+                # Кнопка для открытия URL
+                url_button = types.InlineKeyboardButton(text="Cсылка :)", url=link)
+                keyboard.add(url_button)
+                
+                if image:
+                    # Отправляем сообщение с картинкой, текстом и клавиатурой
+                    message = bot.send_photo(call.message.chat.id, image, caption=formatted_content, parse_mode='HTML', reply_markup=keyboard)
+                else:
+                    # Отправляем сообщение с текстом и клавиатурой
+                    message = bot.send_message(call.message.chat.id, formatted_content, parse_mode='HTML', reply_markup=keyboard)
+                
+                add_user_data(call.from_user.id, call.from_user.username, content_id)
+            else:
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="Содержимое не найдено.")
+        else:
+            if call.data == 'my_profile':
+                my_profile(call.message, bot, try_delete_message, save_message_id)
+            elif call.data.startswith('change_'):
+                # Обработка нажатия на кнопку "change_"
+                content_id = int(call.data.split('_')[1])
+                content_data = get_content_by_id(content_id)
+                if len(content_data) != 7:
+                    logging.error(f"Ожидалось 7 значений, получено {len(content_data)}")
+                    bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+                    return
+
+                content, image, tea_name, quote_agile, question, link, id = content_data
+                
+                if content:
+                    new_formatted_content = f"""
 <b>{id}.{tea_name}</b>
 
 <i>"{content}"</i>
 
 {quote_agile}
 """
-                if image:
-                    bot.send_photo(call.message.chat.id, image, caption=formatted_content, parse_mode='HTML')
-                else:
-                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=formatted_content, parse_mode='HTML')
-                add_user_data(call.from_user.id, call.from_user.username, content_id)
-            else:
-                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="Содержимое не найдено.")
+                    # Удаляем предыдущее сообщение
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                    
+                    # Создаем новую клавиатуру с одной кнопкой
+                    keyboard = types.InlineKeyboardMarkup()
+                                     
+                    # Кнопка для открытия URL
+                    url_button = types.InlineKeyboardButton(text="Cсылка :)", url=link)
+                    keyboard.add(url_button)
 
-            try_delete_message(bot, call.message.chat.id, 'keyboard')
-            try_delete_message(bot, call.message.chat.id, 'command')
-        else:
-            if call.data == 'my_profile':
-                my_profile(call.message, bot, try_delete_message, save_message_id)
+                    if image:
+                        # Отправляем новое сообщение с картинкой, текстом и новой клавиатурой
+                        bot.send_photo(call.message.chat.id, image, caption=new_formatted_content, parse_mode='HTML', reply_markup=keyboard)
+                    else:
+                        # Отправляем новое сообщение с текстом и новой клавиатурой
+                        bot.send_message(call.message.chat.id, new_formatted_content, parse_mode='HTML', reply_markup=keyboard)
+                    add_select_all_data_tea(call.from_user.id, id)
+
+                else:
+                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="Содержимое не найдено.")
             else:
                 bot.send_message(call.message.chat.id, "Неизвестная команда.")
     except Exception as e:
         logging.error(f"Ошибка в обработчике нажатия на кнопку: {e}")
-        bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
+        bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")        
 # Функция для обработки команды /my_commands
 def my_commands(message, bot, try_delete_message, save_message_id, is_allowed_user):
     try:
         user_id = message.from_user.id
         keyboard = types.InlineKeyboardMarkup()
-        # Удаляем предыдущую команду
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
         try_delete_message(bot, message.chat.id, 'command')
 
         if is_allowed_user(user_id):
-            # Кнопки для обычных пользователей
             keyboard.add(types.InlineKeyboardButton("Профиль", callback_data='my_profile'))
             keyboard.add(types.InlineKeyboardButton("Новый чай", callback_data='new_tea'))
             keyboard.add(types.InlineKeyboardButton("Случайный чай", callback_data='tea_random'))
             keyboard.add(types.InlineKeyboardButton("Помощь", callback_data='help'))
-            # Кнопки для администраторов и модераторов
             keyboard.add(types.InlineKeyboardButton("Статистика (All users)", callback_data='get_users_data'))
             keyboard.add(types.InlineKeyboardButton("Статистика (Users)", callback_data='get_unique_users_data'))
         else:
-            # Кнопки для обычных пользователей
             keyboard.add(types.InlineKeyboardButton("Профиль", callback_data='my_profile'))
             keyboard.add(types.InlineKeyboardButton("Новый чай", callback_data='new_tea'))
             keyboard.add(types.InlineKeyboardButton("Случайный чай", callback_data='tea_random'))
             keyboard.add(types.InlineKeyboardButton("Помощь", callback_data='help'))
 
-        # Добавляем кнопку "Отмена"
         keyboard.add(types.InlineKeyboardButton("Отмена", callback_data='cancel'))
 
-        # Отправляем новое сообщение с клавиатурой
         sent_message = bot.send_message(message.chat.id, "Выберите команду:", reply_markup=keyboard)
-        
-        # Сохраняем ID нового сообщения
         save_message_id(message.chat.id, 'command', sent_message.message_id)
-        # try_delete_message(bot, message.chat.id, 'command')
 
     except Exception as e:
         logging.error(f"Ошибка в обработчике команды /my_commands: {e}")
@@ -224,8 +267,6 @@ def unknown_command(message, bot, try_delete_message, save_message_id):
     except Exception as e:
         logging.error(f"Ошибка в обработчике неопознанной команды: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-
 
 # Обработчик команды /edit_profile
 def edit_profile(message, bot, try_delete_message, save_message_id):
@@ -248,7 +289,6 @@ def edit_profile(message, bot, try_delete_message, save_message_id):
     except Exception as e:
         logging.error(f"Ошибка в обработчике команды /create_age: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
 
 # Обработчик команды /create_age
 def create_age(call, message, bot, try_delete_message, save_message_id):
@@ -365,7 +405,6 @@ def my_profile(message, bot, try_delete_message, save_message_id):
                     keyboard = types.InlineKeyboardMarkup()
                     buttons = [
                         types.InlineKeyboardButton("Изменить данные о себе", callback_data='edit_profile'),
-                        # types.InlineKeyboardButton("Назад", callback_data='back'),
                         types.InlineKeyboardButton("Отмена", callback_data='cancel')
                     ]
                     for button in buttons:
@@ -393,23 +432,17 @@ def tea_random(message, bot, try_delete_message, save_message_id):
                     SELECT id FROM bot_content ORDER BY RANDOM() LIMIT 1
                 ''')
                 content_id = cur.fetchone()[0]
-                content, image, tea_name, quote_agile, question, id = get_content_by_id(content_id)
+                content, image, tea_name, quote_agile, question, link, id = get_content_by_id(content_id)
                 
                 if content:
                     formatted_content = f"""
-<b>{id}.{tea_name}</b>
-
 <i>"{content}"</i>
 
-{quote_agile}
 """
                     if image:
                         bot.send_photo(message.chat.id, image, caption=formatted_content, parse_mode='HTML')
                     else:
                         bot.send_message(message.chat.id, formatted_content, parse_mode='HTML')
-                    # save_message_id(message.chat.id, 'command', message.message_id)
-                    # try_delete_message(bot, message.chat.id, 'command')
-
                     # Сохранение записи в таблицу users
                     add_user_data(message.from_user.id, message.from_user.username, content_id)
                 else:
