@@ -1,5 +1,3 @@
-# message_utils.py
-
 import logging
 
 from telebot import types
@@ -13,12 +11,13 @@ def try_delete_message(bot, chat_id, message_type):
         try:
             bot.delete_message(chat_id=chat_id, message_id=message_id)
             del message_ids[chat_id][message_type]
-        except types.ApiTelegramException as e:
+            logging.info(f"Сообщение {message_id} типа '{message_type}' для чата {chat_id} успешно удалено.")
+        except types.ApiException as e:
             if e.error_code == 400 and 'message to delete not found' in e.description:
-                logging.warning(f"Сообщение уже удалено или не найдено: {e.error_code} - {e.description} (chat_id: {chat_id}, message_type: {message_type}, message_id: {message_id})")
-                del message_ids[chat_id][message_type]  # Удаляем запись из словаря, чтобы избежать повторных попыток удаления
+                logging.warning(f"Сообщение уже удалено или не найдено: {e.error_code} - {e.description}")
+                del message_ids[chat_id][message_type]
             else:
-                logging.error(f"Ошибка удаления сообщения: {e.error_code} - {e.description} (chat_id: {chat_id}, message_type: {message_type}, message_id: {message_id})")
+                logging.error(f"Ошибка удаления сообщения: {e.error_code} - {e.description}")
     else:
         logging.warning(f"Сообщение типа '{message_type}' для чата {chat_id} не найдено в словаре message_ids.")
 
