@@ -7,7 +7,7 @@ import psycopg2
 from dotenv import load_dotenv
 
 from message_utils import save_message_id, try_delete_message
-from utils import get_current_date
+from utils import get_current_date, is_allowed_user
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,12 +17,6 @@ load_dotenv()
 
 # Получение переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
-MODER_USER_IDS = [int(os.getenv(f'MODER_USER_ID{i}')) for i in range(6)]
-
-# Функция для проверки прав доступа
-def is_allowed_user(user_id):
-    return user_id in [ADMIN_USER_ID] + MODER_USER_IDS
 
 # Общая функция для добавления достижений
 def add_achievement(cur, user_id, achievement_id):
@@ -58,7 +52,7 @@ def update_user_counts(cur, user_id):
     ''', (count_select_tea, count_achievements, user_id))
 
 # Обработчик команды /add_content
-def add_content(message, bot, try_delete_message, save_message_id):
+def add_content(message, bot):
     try:
         if not is_allowed_user(message.from_user.id):
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
@@ -66,11 +60,26 @@ def add_content(message, bot, try_delete_message, save_message_id):
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                # Получаем всех пользователей из таблицы unique_users
-                cur.execute('SELECT user_id FROM unique_users')
+                # Получаем всех пользователей из таблицы users
+                cur.execute('SELECT user_id FROM users')
                 users = cur.fetchall()
 
                 for user in users:
+                    user_id = user[0]
+
+                    # Проверяем, существует ли пользователь в таблице unique_users
+                    cur.execute('SELECT EXISTS(SELECT 1 FROM unique_users WHERE user_id = %s)', (user_id,))
+                    exists = cur.fetchone()[0]
+
+                    # Если пользователь не существует, добавляем его в таблицу unique_users
+                    if not exists:
+                        cur.execute('INSERT INTO unique_users (user_id) VALUES (%s)', (user_id,))
+
+                # Получаем всех пользователей из таблицы unique_users
+                cur.execute('SELECT user_id FROM unique_users')
+                unique_users = cur.fetchall()
+
+                for user in unique_users:
                     user_id = user[0]
 
                     # Добавляем первое достижение, если его еще нет
@@ -94,11 +103,14 @@ def add_content(message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Достижения и счетчики успешно пересчитаны для всех пользователей.")
         save_message_id(message.chat.id, 'command', message.message_id)
         try_delete_message(bot, message.chat.id, 'command')
+    
 
     except Exception as e:
         logging.exception("Ошибка при пересчете достижений и счетчиков")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-        
+    finally:
+        conn.close()
+
 # Общая функция для получения и отправки данных
 def fetch_and_send_data(call, message, bot, query, output_file):
     try:
@@ -127,16 +139,26 @@ def fetch_and_send_data(call, message, bot, query, output_file):
     except Exception as e:
         logging.exception(f"Ошибка при получении данных: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+    finally:
+        conn.close()
+
+# Обработчик команды /get_users_achievements_data
+def get_users_achievements_data(call, message, bot):
+    query = '''
+        SELECT user_achievement_id, user_id, achievement_id, date_achieved FROM user_achievements
+    '''
+    fetch_and_send_data(call, message, bot, query, 'achievements_data.xlsx')
+
 
 # Обработчик команды /get_users_data
-def get_users_data(call, message, bot, try_delete_message, save_message_id):
+def get_users_data(call, message, bot):
     query = '''
         SELECT user_id, username, date, select_tea, age, gender FROM users
     '''
     fetch_and_send_data(call, message, bot, query, 'parsed_data.xlsx')
 
 # Обработчик команды /get_unique_users_data
-def get_unique_users_data(call, message, bot, try_delete_message, save_message_id):
+def get_unique_users_data(call, message, bot):
     query = '''
         SELECT user_id, username, date_start, date_last, age, gender, evaluation, count_achievements FROM unique_users
     '''
@@ -160,4 +182,8 @@ if not check_table_exists('users'):
 
 if not check_table_exists('unique_users'):
     logging.error("Таблица 'unique_users' не существует.")
+    exit(1)
+
+if not check_table_exists('user_achievements'):
+    logging.error("Таблица 'user_achievements' не существует.")
     exit(1)

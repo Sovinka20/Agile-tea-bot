@@ -5,33 +5,29 @@ import psycopg2
 from telebot import types
 
 from message_utils import save_message_id, try_delete_message
-from utils import get_current_date
+from utils import (close_connection, get_current_date, is_allowed_user,
+                   open_connection)
 
 # Получение переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
 
-# Подключение к PostgreSQL
-try:
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    logging.info("Успешное подключение к базе данных")
-except Exception as e:
-    logging.error(f"Ошибка подключения к базе данных: {e}")
-    exit()
-
 # Функция для получения содержимого по id из таблицы bot_content
-def get_content_by_id(content_id):
+def get_content_by_id_commands(content_id):
     try:
+        conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor() as cur:
             cur.execute('SELECT content, image, tea_name, quote_agile, question, link, id FROM bot_content WHERE id = %s', (content_id,))
             result = cur.fetchone()
+        # close_connection(conn)
             return result if result else (None, None)
     except Exception as e:
         logging.error(f"Ошибка при выполнении SQL-запроса: {e}")
         return (None, None)
+    finally:
+        conn.close()
 
 # Обработчик команды /my_achievements
-def my_achievements(message, bot, try_delete_message, save_message_id):
+def my_achievements(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -70,14 +66,20 @@ def my_achievements(message, bot, try_delete_message, save_message_id):
                     else:
                         logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
 
+                    # close_connection(conn)
+
+
     except Exception as e:
         logging.exception("Ошибка при добавлении новых столбцов и данных")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+    finally:
+        conn.close()
 
 # Функция для добавления данных в таблицу users
 def add_user_data(user_id, username, select_tea):
     date = get_current_date()
     try:
+        conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor() as cur:
             cur.execute('''
                 INSERT INTO users (user_id, username, date, select_tea, age, gender)
@@ -86,6 +88,8 @@ def add_user_data(user_id, username, select_tea):
             conn.commit()
     except Exception as e:
         logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
+    finally:
+        conn.close()
 
 # Функция для создания клавиатуры с кнопками
 def create_keyboard():
@@ -96,7 +100,7 @@ def create_keyboard():
     return keyboard
 
 # Обработчик команды /start
-def start(message, bot, try_delete_message, save_message_id):
+def start(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         keyboard = types.InlineKeyboardMarkup()
@@ -108,7 +112,7 @@ def start(message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /new_tea
-def new_tea(message, bot, try_delete_message, save_message_id):
+def new_tea(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         keyboard = create_keyboard()
@@ -120,7 +124,7 @@ def new_tea(message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /help
-def help(message, bot, try_delete_message, save_message_id):
+def help(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         bot.send_message(message.chat.id, 'Этот бот помогает изучать принципы Agile. Используйте команду /new_tea или /my_commands для начала.')
@@ -132,28 +136,34 @@ def help(message, bot, try_delete_message, save_message_id):
 
 
 # Общая функция для добавления достижений
-def add_select_all_data_tea(cur, user_id, select_id):
-    
-    user_id, select_id, date
-    date = get_current_date()
-    cur.execute('''
-        INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
-        VALUES (%s, %s, %s)
-    ''', (user_id, select_id, date))
+def add_select_all_data_tea(user_id, select_id):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+
+        date = get_current_date()
+        with conn.cursor() as cur:
+            cur.execute('''
+            INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
+            VALUES (%s, %s, %s)
+        ''', (user_id, select_id, date))
+    except Exception as e:
+        logging.error(f"Ошибка подключения к базе данных: {e}")
+        exit()
+    finally:
+        conn.close()
+
 
 # Обработчик нажатия на кнопку
-def button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id, add_select_all_data_tea):
+def button(call, bot):
     try:
         if call.data.isdigit():
             content_id = int(call.data)
-            content_data = get_content_by_id(content_id)
+            content_data = get_content_by_id_commands(content_id)
             if len(content_data) != 7:
                 logging.error(f"Ожидалось 7 значений, получено {len(content_data)}")
                 bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
                 return
-
             content, image, tea_name, quote_agile, question, link, id = content_data
-                
             if content:
                 formatted_content = f"""
 <i>"{content}"</i>
@@ -185,14 +195,12 @@ def button(call, bot, get_content_by_id, add_user_data, try_delete_message, save
             elif call.data.startswith('change_'):
                 # Обработка нажатия на кнопку "change_"
                 content_id = int(call.data.split('_')[1])
-                content_data = get_content_by_id(content_id)
+                content_data = get_content_by_id_commands(content_id)
                 if len(content_data) != 7:
                     logging.error(f"Ожидалось 7 значений, получено {len(content_data)}")
                     bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
                     return
-
                 content, image, tea_name, quote_agile, question, link, id = content_data
-                
                 if content:
                     new_formatted_content = f"""
 <b>{id}.{tea_name}</b>
@@ -225,9 +233,10 @@ def button(call, bot, get_content_by_id, add_user_data, try_delete_message, save
                 bot.send_message(call.message.chat.id, "Неизвестная команда.")
     except Exception as e:
         logging.error(f"Ошибка в обработчике нажатия на кнопку: {e}")
-        bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")        
+        bot.send_message(call.message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")   
+
 # Функция для обработки команды /my_commands
-def my_commands(message, bot, try_delete_message, save_message_id, is_allowed_user):
+def my_commands(message, bot):
     try:
         user_id = message.from_user.id
         keyboard = types.InlineKeyboardMarkup()
@@ -236,17 +245,19 @@ def my_commands(message, bot, try_delete_message, save_message_id, is_allowed_us
         try_delete_message(bot, message.chat.id, 'command')
 
         if is_allowed_user(user_id):
-            keyboard.add(types.InlineKeyboardButton("Профиль", callback_data='my_profile'))
+            # keyboard.add(types.InlineKeyboardButton("Профиль", callback_data='my_profile'))
             keyboard.add(types.InlineKeyboardButton("Новый чай", callback_data='new_tea'))
             keyboard.add(types.InlineKeyboardButton("Случайный чай", callback_data='tea_random'))
-            keyboard.add(types.InlineKeyboardButton("Помощь", callback_data='help'))
+            # keyboard.add(types.InlineKeyboardButton("Помощь", callback_data='help'))
             keyboard.add(types.InlineKeyboardButton("Статистика (All users)", callback_data='get_users_data'))
             keyboard.add(types.InlineKeyboardButton("Статистика (Users)", callback_data='get_unique_users_data'))
+            keyboard.add(types.InlineKeyboardButton("Статистика (Ачивки)", callback_data='get_users_achievements_data'))
+            
         else:
-            keyboard.add(types.InlineKeyboardButton("Профиль", callback_data='my_profile'))
+            # keyboard.add(types.InlineKeyboardButton("Профиль", callback_data='my_profile'))
             keyboard.add(types.InlineKeyboardButton("Новый чай", callback_data='new_tea'))
             keyboard.add(types.InlineKeyboardButton("Случайный чай", callback_data='tea_random'))
-            keyboard.add(types.InlineKeyboardButton("Помощь", callback_data='help'))
+            # keyboard.add(types.InlineKeyboardButton("Помощь", callback_data='help'))
 
         keyboard.add(types.InlineKeyboardButton("Отмена", callback_data='cancel'))
 
@@ -258,7 +269,7 @@ def my_commands(message, bot, try_delete_message, save_message_id, is_allowed_us
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик неопознанных команд
-def unknown_command(message, bot, try_delete_message, save_message_id):
+def unknown_command(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         bot.send_message(message.chat.id, "Простите, такой команды нет. Используйте /help для получения справки.")
@@ -269,7 +280,7 @@ def unknown_command(message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /edit_profile
-def edit_profile(message, bot, try_delete_message, save_message_id):
+def edit_profile(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -291,7 +302,7 @@ def edit_profile(message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /create_age
-def create_age(call, message, bot, try_delete_message, save_message_id):
+def create_age(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -313,7 +324,7 @@ def create_age(call, message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /create_gender
-def create_gender(call, message, bot, try_delete_message, save_message_id):
+def create_gender(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -333,7 +344,7 @@ def create_gender(call, message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /create_favorite_tea
-def create_favorite_tea(call, message, bot, try_delete_message, save_message_id):
+def create_favorite_tea(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -345,7 +356,7 @@ def create_favorite_tea(call, message, bot, try_delete_message, save_message_id)
                     SELECT id, tea_name FROM bot_content WHERE id != 0
                 ''')
                 teas = cur.fetchall()
-                logging.error(f"Значение: {teas}")
+                # close_connection(conn)
                 buttons = [types.InlineKeyboardButton(f"{tea[0]}.{tea[1]}", callback_data=f'tea_{tea[0]}') for tea in teas]
                 buttons.append(types.InlineKeyboardButton("Отмена", callback_data='cancel'))
                 for button in buttons:
@@ -355,9 +366,11 @@ def create_favorite_tea(call, message, bot, try_delete_message, save_message_id)
     except Exception as e:
         logging.error(f"Ошибка в обработчике команды /create_favorite_tea: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+    finally:
+        conn.close()
 
 # Обработчик команды /create_evaluation
-def create_evaluation(call, message, bot, try_delete_message, save_message_id):
+def create_evaluation(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -380,7 +393,7 @@ def create_evaluation(call, message, bot, try_delete_message, save_message_id):
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Обработчик команды /my_profile
-def my_profile(message, bot, try_delete_message, save_message_id):
+def my_profile(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(message.chat.id, 'command', message.message_id)
@@ -392,8 +405,6 @@ def my_profile(message, bot, try_delete_message, save_message_id):
                     FROM unique_users WHERE user_id = %s
                 ''', (message.from_user.id,))
                 user_data = cur.fetchone()
-                logging.error(f"Данные: {user_data, message.from_user.id}")
-
                 if user_data:
                     age, gender, favorite_tea, evaluation, count_achievements = user_data
                     with conn.cursor() as cur:
@@ -401,6 +412,7 @@ def my_profile(message, bot, try_delete_message, save_message_id):
                             SELECT tea_name FROM bot_content WHERE id = %s
                         ''', (favorite_tea,))
                         favorite_tea_name = cur.fetchone()[0] if favorite_tea else "не указан"
+                        # close_connection(conn)
                     profile_text = f"Ваш возраст - {age}\nВаш пол - {gender}\nВаш любимый чай - {favorite_tea_name}\nВаша оценка чай-бота - {'⭐️' * evaluation}\nВаши достижения - {count_achievements}"
                     keyboard = types.InlineKeyboardMarkup()
                     buttons = [
@@ -416,12 +428,13 @@ def my_profile(message, bot, try_delete_message, save_message_id):
     except Exception as e:
         logging.error(f"Ошибка в обработчике команды /my_profile: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+    finally:
+        conn.close()
 
 
 
 # Обработчик команды /tea_random
-def tea_random(message, bot, try_delete_message, save_message_id):
-    logging.error(f"Проверка: {message}")
+def tea_random(message, bot):
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
         save_message_id(abs(message.chat.id), 'command', message.message_id)
@@ -432,7 +445,7 @@ def tea_random(message, bot, try_delete_message, save_message_id):
                     SELECT id FROM bot_content ORDER BY RANDOM() LIMIT 1
                 ''')
                 content_id = cur.fetchone()[0]
-                content, image, tea_name, quote_agile, question, link, id = get_content_by_id(content_id)
+                content, image, tea_name, quote_agile, question, link, id = get_content_by_id_commands(content_id)
                 
                 if content:
                     formatted_content = f"""
@@ -445,8 +458,11 @@ def tea_random(message, bot, try_delete_message, save_message_id):
                         bot.send_message(message.chat.id, formatted_content, parse_mode='HTML')
                     # Сохранение записи в таблицу users
                     add_user_data(message.from_user.id, message.from_user.username, content_id)
+                    # close_connection(conn)
                 else:
                     bot.send_message(message.chat.id, "Содержимое не найдено.")
     except Exception as e:
         logging.error(f"Ошибка в обработчике команды /tea_random: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+    finally:
+        conn.close()

@@ -9,9 +9,11 @@ import telebot
 from dotenv import load_dotenv
 from telebot import types
 
-from admin_commands import add_content, get_unique_users_data, get_users_data
-
+from admin_commands import (add_content, get_unique_users_data,
+                            get_users_achievements_data, get_users_data)
 from message_utils import save_message_id, try_delete_message
+from utils import (close_connection, get_current_date, is_allowed_user,
+                   open_connection)
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -25,60 +27,6 @@ MODER_USER_IDS = [int(os.getenv(f'MODER_USER_ID{i}')) for i in range(6)]
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Подключение к PostgreSQL
-try:
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    logging.info("Успешное подключение к базе данных")
-except Exception as e:
-    logging.error(f"Ошибка подключения к базе данных: {e}")
-    exit()
-
-# Функция для получения содержимого по id из таблицы bot_content
-def get_content_by_id(content_id):
-    try:
-        with conn.cursor() as cur:
-            cur.execute('SELECT content, image, tea_name, quote_agile, question, link, id FROM bot_content WHERE id = %s', (content_id,))
-            result = cur.fetchone()
-            return result if result else (None, None)
-    except Exception as e:
-        logging.error(f"Ошибка при выполнении SQL-запроса: {e}")
-        return (None, None)
-
-# Функция для получения текущей даты
-def get_current_date():
-    return datetime.now().strftime("%Y-%m-%d")
-
-# Функция для добавления данных в таблицу users
-def add_user_data(user_id, username, select_tea):
-    date = get_current_date()
-    try:
-        with conn.cursor() as cur:
-            cur.execute('''
-                INSERT INTO users (user_id, username, date, select_tea, age, gender)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            ''', (user_id, username, date, select_tea, 0, 'u'))
-            conn.commit()
-    except Exception as e:
-        logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
-
-# Общая функция для добавления достижений
-def add_select_all_data_tea(user_id, select_id):
-    date = get_current_date()
-    try:
-        with conn.cursor() as cur:
-            cur.execute('''
-            INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
-            VALUES (%s, %s, %s)
-        ''', (user_id, select_id, date))
-        conn.commit()
-    except Exception as e:
-        logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
-
-# Функция для проверки прав доступа
-def is_allowed_user(user_id):
-    return user_id in [ADMIN_USER_ID] + MODER_USER_IDS
 
 # Создание экземпляра бота
 bot = telebot.TeleBot(TOKEN)
@@ -139,6 +87,72 @@ button_to_value = {
     'cancel': None  # Отмена не требует обновления данных
 }
 
+
+# Функция для повторных попыток подключения к базе данных
+def connect_to_db(max_retries=3, delay=5):
+    retries = 0
+    while retries < max_retries:
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            logging.info("Успешное подключение к базе данных")
+            return conn
+        except Exception as e:
+            logging.error(f"Ошибка подключения к базе данных: {e}")
+            retries += 1
+            time.sleep(delay)
+    logging.error("Превышено количество попыток подключения к базе данных")
+    return None
+
+# Функция для получения содержимого по id из таблицы bot_content
+def get_content_by_id(content_id):
+    try:
+        with conn.cursor() as cur:
+            cur.execute('SELECT content, image, tea_name, quote_agile, question, link, id FROM bot_content WHERE id = %s', (content_id,))
+            result = cur.fetchone()
+            if result:
+                return result
+            else:
+                return (None, None, None, None, None, None, None)
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении SQL-запроса: {e}")
+        return (None, None, None, None, None, None, None)
+
+# Функция для добавления данных в таблицу users
+def add_user_data(user_id, username, select_tea):
+    conn = connect_to_db()
+    if conn is None:
+        return
+    date = get_current_date()
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO users (user_id, username, date, select_tea, age, gender)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (user_id, username, date, select_tea, 0, 'u'))
+            conn.commit()
+    except Exception as e:
+        logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
+    finally:
+        conn.close()
+
+# Общая функция для добавления достижений
+def add_select_all_data_tea(user_id, select_id):
+    conn = connect_to_db()
+    if conn is None:
+        return
+    date = get_current_date()
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+            INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
+            VALUES (%s, %s, %s)
+        ''', (user_id, select_id, date))
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
+    finally:
+        conn.close()
+
 def update_user_data(message, id_users, button_data):
     """
     Обновляет данные пользователя в таблице unique_users по id_users на основе текста на кнопках.
@@ -146,6 +160,9 @@ def update_user_data(message, id_users, button_data):
     :param id_users: ID пользователя в таблице unique_users.
     :param button_data: Текст на кнопке, который нужно обработать.
     """
+    conn = connect_to_db()
+    if conn is None:
+        return
     try:
         # Получаем поле и значение для обновления
         field = button_to_field.get(button_data)
@@ -154,113 +171,118 @@ def update_user_data(message, id_users, button_data):
         if field is None or value is None:
             return  # Если кнопка "Отмена" или неизвестная кнопка, ничего не делаем
 
-        # Подключение к базе данных
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                # Формирование SQL-запроса для обновления данных
-                query = f"UPDATE unique_users SET {field} = %s WHERE user_id = %s"
-                cur.execute(query, (value, id_users))
-                conn.commit()
-                logging.info(f"Данные пользователя с id_users={id_users} обновлены: {field}={value}")
-                bot.send_message(message.chat.id, "Данные успешно обновлены!")
+        with conn.cursor() as cur:
+            # Формирование SQL-запроса для обновления данных
+            query = f"UPDATE unique_users SET {field} = %s WHERE user_id = %s"
+            cur.execute(query, (value, id_users))
+            conn.commit()
+            logging.info(f"Данные пользователя с id_users={id_users} обновлены: {field}={value}")
+            bot.send_message(message.chat.id, "Данные успешно обновлены!")
     except Exception as e:
         logging.error(f"Ошибка при обновлении данных пользователя с id_users={id_users}: {e}")
+    finally:
+        conn.close()
 
 # Регистрация обработчиков команд
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     from commands import start
-    start(message, bot, try_delete_message, save_message_id)
+    start(message, bot)
 
 @bot.message_handler(commands=['new_tea'])
 def handle_new_tea(message):
     from commands import new_tea
-    new_tea(message, bot, try_delete_message, save_message_id)
+    new_tea(message, bot)
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
     from commands import help
-    help(message, bot, try_delete_message, save_message_id)
+    help(message, bot)
 
 @bot.message_handler(commands=['add_content'])
 def handle_add_content(message):
     from admin_commands import add_content
-    add_content(message, bot, try_delete_message, save_message_id)
+    add_content(message, bot)
 
 @bot.message_handler(commands=['get_users_data'])
 def handle_get_users_data(message):
     from admin_commands import get_users_data
-    get_users_data(message, bot, try_delete_message, save_message_id)
+    get_users_data(message, bot)
 
 @bot.message_handler(commands=['get_unique_users_data'])
 def handle_get_unique_users_data(message):
     from admin_commands import get_unique_users_data
-    get_unique_users_data(message, bot, try_delete_message, save_message_id)
+    get_unique_users_data(message, bot)
+
+@bot.message_handler(commands=['get_users_achievements_data'])
+def handle_get_users_achievements_data(message):
+    from admin_commands import get_users_achievements_data
+    get_users_achievements_data(message, bot)
 
 @bot.message_handler(commands=['my_commands'])
 def handle_my_commands_command(message):
     from commands import my_commands
-    my_commands(message, bot, try_delete_message, save_message_id, is_allowed_user)
+    my_commands(message, bot)
 
 @bot.message_handler(commands=['create_age'])
 def handle_create_age(message):
     from commands import create_age
-    create_age(message, bot, try_delete_message, save_message_id)
+    create_age(message, bot)
 
 @bot.message_handler(commands=['create_gender'])
 def handle_create_gender(message):
     from commands import create_gender
-    create_gender(message, bot, try_delete_message, save_message_id)
+    create_gender(message, bot)
 
 @bot.message_handler(commands=['create_favorite_tea'])
 def handle_create_favorite_tea(message):
     from commands import create_favorite_tea
-    create_favorite_tea(message, bot, try_delete_message, save_message_id)
+    create_favorite_tea(message, bot)
 
 @bot.message_handler(commands=['create_evaluation'])
 def handle_create_evaluation(message):
     from commands import create_evaluation
-    create_evaluation(message, bot, try_delete_message, save_message_id)
+    create_evaluation(message, bot)
 
 @bot.message_handler(commands=['my_profile'])
 def handle_my_profile(message):
     from commands import my_profile
-    my_profile(message, bot, try_delete_message, save_message_id)
+    my_profile(message, bot)
 
 @bot.message_handler(commands=['edit_profile'])
 def handle_my_profile(message):
     from commands import edit_profile
-    edit_profile(message, bot, try_delete_message, save_message_id)
+    edit_profile(message, bot)
 
 @bot.message_handler(commands=['tea_random'])
 def handle_tea_random(message):
     from commands import tea_random
-    tea_random(message, bot, try_delete_message, save_message_id)
-
-
+    tea_random(message, bot)
 
 @bot.message_handler(commands=['my_achievements'])
 def handle_my_achievements(message):
     from commands import my_achievements
-    my_achievements(message, bot, try_delete_message, save_message_id)
+    my_achievements(message, bot)
 
 # Обработчик колбэков
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
     try:
         if call.data == 'get_users_data':
-            get_users_data(call, call.message, bot, try_delete_message, save_message_id)
+            get_users_data(call, call.message, bot)
         elif call.data == 'get_unique_users_data':
-            get_unique_users_data(call, call.message, bot, try_delete_message, save_message_id)
+            get_unique_users_data(call, call.message, bot)
+        elif call.data == 'get_users_achievements_data':
+            get_users_achievements_data(call, call.message, bot)
         elif call.data == 'start':
             from commands import start
-            start(call.message, bot, try_delete_message, save_message_id)
+            start(call.message, bot)
         elif call.data == 'new_tea':
             from commands import new_tea
-            new_tea(call.message, bot, try_delete_message, save_message_id)
+            new_tea(call.message, bot)
         elif call.data == 'tea_random':
             from commands import tea_random
-            tea_random(call.message, bot, try_delete_message, save_message_id)
+            tea_random(call.message, bot)
         elif call.data == 'help':
             from commands import help
             help(call.message, bot, try_delete_message, save_message_id)
@@ -269,26 +291,26 @@ def handle_callback_query(call):
             try_delete_message(bot, call.message.chat.id, 'command')
         elif call.data == 'my_profile':
             from commands import my_profile
-            my_profile(call.message, bot, try_delete_message, save_message_id)
+            my_profile(call.message, bot)
         elif call.data == 'edit_profile':
             from commands import edit_profile
-            edit_profile(call.message, bot, try_delete_message, save_message_id)
+            edit_profile(call.message, bot)
         
         elif call.data == 'create_age':
             from commands import create_age
-            create_age(call, call.message, bot, try_delete_message, save_message_id)
+            create_age(call.message, bot)
         elif call.data == 'create_gender':
             from commands import create_gender
-            create_gender(call, call.message, bot, try_delete_message, save_message_id)
+            create_gender(call.message, bot)
         elif call.data == 'create_favorite_tea':
             from commands import create_favorite_tea
-            create_favorite_tea(call, call.message, bot, try_delete_message, save_message_id)
+            create_favorite_tea(call.message, bot)
         elif call.data == 'create_evaluation':
             from commands import create_evaluation
-            create_evaluation(call, call.message, bot, try_delete_message, save_message_id)
+            create_evaluation(call.message, bot)
         elif call.data == 'my_achievements':
             from commands import my_achievements
-            my_achievements(call.message, bot, try_delete_message, save_message_id)
+            my_achievements(call.message, bot)
             
         elif call.data.startswith('age_'):
             update_user_data(call.message, call.from_user.id, call.data)
@@ -308,7 +330,7 @@ def handle_callback_query(call):
             handle_more_tea_callback(call)
         else:
             from commands import button
-            button(call, bot, get_content_by_id, add_user_data, try_delete_message, save_message_id, add_select_all_data_tea)
+            button(call, bot)
 
         bot.delete_message(call.message.chat.id, call.message.message_id)
         try_delete_message(bot, call.message.chat.id, 'command')

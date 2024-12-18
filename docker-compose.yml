@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  bot:
+    image: your_bot_image
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    command: python main.py
