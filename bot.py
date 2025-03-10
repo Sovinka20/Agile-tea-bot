@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 from telebot import types
 
 from admin_commands import (add_content, get_unique_users_data,
-                            get_users_achievements_data, get_users_data)
+                            get_users_achievements_data, get_users_data,
+                            update_achievement_image)
 from message_utils import save_message_id, try_delete_message
 from utils import (close_connection, get_current_date, is_allowed_user,
                    open_connection)
@@ -21,8 +22,8 @@ load_dotenv()
 # Получение переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
 TOKEN = os.getenv('TOKEN')
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
-MODER_USER_IDS = [int(os.getenv(f'MODER_USER_ID{i}')) for i in range(6)]
+# ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
+# MODER_USER_IDS = list(map(int, os.getenv('MODER_USER_IDS').split(',')))
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -203,6 +204,11 @@ def handle_help(message):
 def handle_add_content(message):
     from admin_commands import add_content
     add_content(message, bot)
+
+@bot.message_handler(commands=['update_achievement_image'])
+def handle_update_achievement_image(message):
+    from admin_commands import update_achievement_image
+    update_achievement_image(message, bot)
 
 @bot.message_handler(commands=['get_users_data'])
 def handle_get_users_data(message):

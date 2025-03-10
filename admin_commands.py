@@ -5,6 +5,7 @@ from datetime import datetime
 import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
+from telebot import types
 
 from message_utils import save_message_id, try_delete_message
 from utils import get_current_date, is_allowed_user
@@ -17,6 +18,71 @@ load_dotenv()
 
 # Получение переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
+
+# Список ID администраторов
+ADMIN_IDS = list(map(int, os.getenv('ADMIN_IDS').split(',')))
+
+def update_achievement_image(message, bot):
+    try:
+        user_id = message.from_user.id
+
+        # Проверка, является ли пользователь администратором
+        if user_id not in ADMIN_IDS:
+            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+            return
+
+        # Запрашиваем у администратора ID достижения и имя файла
+        bot.send_message(message.chat.id, "Введите ID достижения и имя файла изображения в формате:\n"
+                                        "<achievement_id> <image_filename>\n"
+                                        "Пример: 1 'a_piece_of_sugar.gif'")
+        bot.register_next_step_handler(message, process_achievement_image_update, bot)
+
+    except Exception as e:
+        logging.error(f"Ошибка в команде /update_achievement_image: {e}")
+        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+
+def process_achievement_image_update(message, bot):
+    try:
+        user_id = message.from_user.id
+
+        # Проверка, является ли пользователь администратором
+        if user_id not in ADMIN_IDS:
+            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+            return
+
+        # Разбиваем введённые данные на части
+        data = message.text.split(maxsplit=1)
+        if len(data) != 2:
+            bot.send_message(message.chat.id, "Неверный формат данных. Пожалуйста, попробуйте ещё раз.")
+            return
+
+        achievement_id, image_filename = data
+
+        # Проверяем, существует ли файл с изображением
+        image_path = os.path.join(os.getcwd(), image_filename.strip())
+        if not os.path.exists(image_path):
+            bot.send_message(message.chat.id, f"Файл '{image_filename}' не найден.")
+            return
+
+        # Читаем бинарные данные изображения
+        with open(image_path, 'rb') as f:
+            image_data = f.read()
+
+        # Обновляем поле image_achievements в таблице achievements
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    UPDATE achievements
+                    SET image_achievements = %s
+                    WHERE achievement_id = %s
+                ''', (image_data, int(achievement_id)))
+                conn.commit()
+
+        bot.send_message(message.chat.id, f"Изображение для достижения с ID {achievement_id} успешно обновлено!")
+
+    except Exception as e:
+        logging.error(f"Ошибка при обновлении изображения достижения: {e}")
+        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Общая функция для добавления достижений
 def add_achievement(cur, user_id, achievement_id):
@@ -51,21 +117,36 @@ def update_user_counts(cur, user_id):
         WHERE user_id = %s
     ''', (count_select_tea, count_achievements, user_id))
 
-# Обработчик команды /add_content
+
+# Обнолвени таблицы uniqie_users
 def add_content(message, bot):
     try:
+        logging.info(is_allowed_user(message.from_user.id))
+
         if not is_allowed_user(message.from_user.id):
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-            return
+            save_message_id(message.chat.id, 'command', message.message_id)
+            try_delete_message(bot, message.chat.id, 'command')
+            # return
+
+
+        bot.send_message(message.chat.id, "Процесс запущен, ожидайте...")
+        save_message_id(message.chat.id, 'command', message.message_id)
+        try_delete_message(bot, message.chat.id, 'command')
+
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 # Получаем всех пользователей из таблицы users
-                cur.execute('SELECT user_id FROM users')
+                cur.execute('''
+                    SELECT user_id, username, MIN(date) as date_start, MAX(date) as date_last 
+                    FROM users 
+                    GROUP BY user_id, username
+                ''')
                 users = cur.fetchall()
 
                 for user in users:
-                    user_id = user[0]
+                    user_id, username, date_start, date_last = user
 
                     # Проверяем, существует ли пользователь в таблице unique_users
                     cur.execute('SELECT EXISTS(SELECT 1 FROM unique_users WHERE user_id = %s)', (user_id,))
@@ -73,7 +154,17 @@ def add_content(message, bot):
 
                     # Если пользователь не существует, добавляем его в таблицу unique_users
                     if not exists:
-                        cur.execute('INSERT INTO unique_users (user_id) VALUES (%s)', (user_id,))
+                        cur.execute('''
+                            INSERT INTO unique_users (user_id, username, date_start, date_last)
+                            VALUES (%s, %s, %s, %s)
+                        ''', (user_id, username, date_start, date_last))
+                    else:
+                        # Если пользователь существует, обновляем date_last
+                        cur.execute('''
+                            UPDATE unique_users
+                            SET date_last = %s
+                            WHERE user_id = %s
+                        ''', (date_last, user_id))
 
                 # Получаем всех пользователей из таблицы unique_users
                 cur.execute('SELECT user_id FROM unique_users')
@@ -101,9 +192,6 @@ def add_content(message, bot):
                     update_user_counts(cur, user_id)
 
         bot.send_message(message.chat.id, "Достижения и счетчики успешно пересчитаны для всех пользователей.")
-        save_message_id(message.chat.id, 'command', message.message_id)
-        try_delete_message(bot, message.chat.id, 'command')
-    
 
     except Exception as e:
         logging.exception("Ошибка при пересчете достижений и счетчиков")

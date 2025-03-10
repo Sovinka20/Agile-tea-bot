@@ -33,47 +33,37 @@ def my_achievements(message, bot):
         save_message_id(message.chat.id, 'command', message.message_id)
         try_delete_message(bot, message.chat.id, 'command')
 
-        TEST_USER_ID = message.from_user.id
+        user_id = message.from_user.id
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - КУСОЧЕК САХАРА!")
-                sugar_file_path = os.path.join('a_piece_of_sugar.gif')
-                if os.path.exists(sugar_file_path):
-                    with open(sugar_file_path, 'rb') as file:
-                        bot.send_document(TEST_USER_ID, file)
-                else:
-                    logging.error(f"Файл '{sugar_file_path}' не найден.")
-
-                cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (TEST_USER_ID,))
+                # Получаем количество выборов чая пользователем
+                cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (user_id,))
                 count = cur.fetchone()[0]
 
-                if count >= 12:
-                    bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - Чайный лист! Вы выбрали чаи 12 раз!")
-                    tea_leaf_file_path = os.path.join('tea_leaf.gif')
-                    if os.path.exists(tea_leaf_file_path):
-                        with open(tea_leaf_file_path, 'rb') as file:
-                            bot.send_document(TEST_USER_ID, file)
-                    else:
-                        logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
+                # Получаем достижения, которые соответствуют текущему количеству выборов
+                cur.execute('''
+                    SELECT "achievement_name", "description", "image_achievements" 
+                    FROM achievements 
+                    WHERE condition <= %s
+                ''', (count,))
+                achievements = cur.fetchall()
 
-                if count >= 20:
-                    bot.send_message(TEST_USER_ID, "Поздравляем! Ваше новое достижение - Чайный пакетик! Вы выбрали чай 20 раз!")
-                    tea_leaf_file_path = os.path.join('tea bag.gif')
-                    if os.path.exists(tea_leaf_file_path):
-                        with open(tea_leaf_file_path, 'rb') as file:
-                            bot.send_document(TEST_USER_ID, file)
-                    else:
-                        logging.error(f"Файл '{tea_leaf_file_path}' не найден.")
+                if achievements:
+                    for achievement in achievements:
+                        achievement_name, description, image_achievements = achievement
+                        bot.send_message(user_id, f"Поздравляем! Ваше новое достижение - {achievement_name}!\n{description}")
 
-                    # close_connection(conn)
-
+                        if image_achievements:
+                            # Отправляем изображение, если оно есть
+                            bot.send_photo(user_id, image_achievements)
+                else:
+                    bot.send_message(user_id, "У вас пока нет достижений.")
 
     except Exception as e:
-        logging.exception("Ошибка при добавлении новых столбцов и данных")
+        logging.exception("Ошибка при получении достижений")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-    finally:
-        conn.close()
+
 
 # Функция для добавления данных в таблицу users
 def add_user_data(user_id, username, select_tea):

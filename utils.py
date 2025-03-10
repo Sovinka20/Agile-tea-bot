@@ -15,13 +15,14 @@ load_dotenv()
 # Получение переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
 ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
-MODER_USER_IDS = [int(os.getenv(f'MODER_USER_ID{i}')) for i in range(6)]
+MODER_USER_IDS = list(map(int, os.getenv('MODER_USER_IDS').split(',')))
 
 def get_current_date():
     return datetime.now().strftime('%Y-%m-%d')
 
 # Функция для проверки прав доступа
 def is_allowed_user(user_id):
+    logging.info(user_id in [ADMIN_USER_ID] + MODER_USER_IDS)
     return user_id in [ADMIN_USER_ID] + MODER_USER_IDS
 
 # Функция для открытия соединения с базой данных

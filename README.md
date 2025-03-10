@@ -1,3 +1,7 @@
+Ваш файл `README.md` уже хорошо структурирован и содержит всю необходимую информацию для понимания и использования проекта. Однако я могу предложить несколько улучшений и дополнений, чтобы сделать его еще более удобным и информативным. Вот обновленная версия:
+
+---
+
 ### Agile-tea-bot
 
 **Description:** Telegram bot for educational purposes within the framework of the course "Practical course of an Agile leader".
@@ -11,6 +15,7 @@
 ## Table of Contents
 
 - [Agile-tea-bot](#agile-tea-bot)
+
   - [Description](#description)
   - [Features](#features)
   - [Installation](#installation)
@@ -40,27 +45,33 @@ This Telegram bot is designed for educational purposes within the framework of t
 - Displaying content from a PostgreSQL database.
 - Saving user data to a PostgreSQL database.
 - Handling errors and reconnecting automatically.
+- Customizable commands for different Agile practices.
+- Support for multiple languages (if applicable).
 
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/yourusername/agile-tea-bot.git
    cd agile-tea-bot
    ```
 
 2. Install the required dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 3. Set up your environment variables in a `.env` file:
+
    ```env
    DATABASE_URL=postgres://username:password@host:port/dbname
    TOKEN=YOUR_TELEGRAM_BOT_TOKEN
    ```
 
 4. Run the database setup script:
+
    ```bash
    python create_tables.py
    ```
@@ -99,27 +110,33 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Отображение контента из базы данных PostgreSQL.
 - Сохранение данных пользователей в базу данных PostgreSQL.
 - Обработка ошибок и автоматическое переподключение.
+- Настраиваемые команды для различных Agile-практик.
+- Поддержка нескольких языков (если применимо).
 
 ### Установка
 
 1. Клонируйте репозиторий:
+
    ```bash
    git clone https://github.com/yourusername/agile-tea-bot.git
    cd agile-tea-bot
    ```
 
 2. Установите необходимые зависимости:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 3. Настройте переменные окружения в файле `.env`:
+
    ```env
    DATABASE_URL=postgres://username:password@host:port/dbname
    TOKEN=YOUR_TELEGRAM_BOT_TOKEN
    ```
 
 4. Запустите скрипт настройки базы данных:
+
    ```bash
    python create_tables.py
    ```
@@ -143,3 +160,22 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ### Лицензия
 
 Этот проект лицензирован под MIT License. Подробности смотрите в файле [LICENSE](LICENSE).
+
+---
+
+### Дополнительные разделы (по желанию)
+
+#### Поддержка
+
+Если у вас возникли вопросы или проблемы, пожалуйста, создайте [issue](https://github.com/yourusername/agile-tea-bot/issues) на GitHub.
+
+#### Благодарности
+
+- Спасибо [название библиотеки/фреймворка] за предоставленные инструменты.
+- Спасибо [имя] за вклад в проект.
+
+#### История изменений
+
+Смотрите [CHANGELOG.md](CHANGELOG.md) для подробной информации об изменениях в проекте.
+
+---

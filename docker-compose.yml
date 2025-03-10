@@ -2,9 +2,16 @@ version: "3.8"
 
 services:
   bot:
-    image: your_bot_image
+    image: bot_agile_image
+    container_name: bot_agile_container # Имя контейнера
     env_file:
       - .env
+    build:
+      context: .
+      dockerfile: ./Dockerfile # Указываем Dockerfile для production
+    ports:
+      - "3006:3000" # Пробрасываем порт 3000 контейнера на порт 3005 хоста
+    restart: always
     volumes:
       - .:/app
-    command: python main.py
+    command: python bot.py

@@ -4,10 +4,18 @@ FROM python:3.9-slim
 # Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
 
-# Копируем файлы проекта в рабочую директорию
-COPY . .
+# Копируем только необходимые файлы
+COPY requirements.txt ./
+COPY bot.py ./
+COPY utils.py ./
+COPY message_utils.py ./
+COPY commands.py ./
+COPY admin_commands.py ./
 
-# Устанавливаем зависимости из requirements.txt
+# Если есть другие файлы или папки
+# COPY other_files/ ./other_files/  
+
+# Устанавливаем зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Запускаем бота при старте контейнера
