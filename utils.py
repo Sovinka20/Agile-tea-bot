@@ -14,37 +14,9 @@ load_dotenv()
 
 # Получение переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
-MODER_USER_IDS = list(map(int, os.getenv('MODER_USER_IDS').split(',')))
-
-def get_current_date():
-    return datetime.now().strftime('%Y-%m-%d')
-
-# Функция для проверки прав доступа
-def is_allowed_user(user_id):
-    logging.info(user_id in [ADMIN_USER_ID] + MODER_USER_IDS)
-    return user_id in [ADMIN_USER_ID] + MODER_USER_IDS
-
-# Функция для открытия соединения с базой данных
-def open_connection():
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        logging.info("Успешное подключение к базе данных")
-        return conn
-    except Exception as e:
-        logging.error(f"Ошибка подключения к базе данных: {e}")
-        exit()
-    finally:
-        conn.close()
-
-# Функция для закрытия соединения с базой данных
-def close_connection(conn):
-    if conn:
-        conn.close()
-        logging.info("Соединение с базой данных закрыто")
-
-
-import logging
+# Список ID администраторов
+ADMIN_IDS = list(map(int, os.getenv('ADMIN_IDS').split(',')))
+MODER_IDS = list(map(int, os.getenv('MODER_IDS').split(',')))
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG,
@@ -52,9 +24,62 @@ logging.basicConfig(level=logging.DEBUG,
                     filename='app.log',
                     filemode='w')
 
+logger = logging.getLogger(__name__)
+
 # Примеры логирования
-# logging.debug('Это сообщение отладки')
-# logging.info('Это информационное сообщение')
-# logging.warning('Это предупреждение')
-# logging.error('Это сообщение об ошибке')
-# logging.critical('Это критическое сообщение')
+# logger.debug('Это сообщение отладки')
+# logger.info('Это информационное сообщение')
+# logger.warning('Это предупреждение')
+# logger.error('Это сообщение об ошибке')
+# logger.critical('Это критическое сообщение')
+
+
+
+def get_current_date():
+    """
+    Возвращает текущую дату в формате 'ГГГГ-ММ-ДД'.
+
+    :return: Строка с текущей датой.
+    """
+    return datetime.now().strftime('%Y-%m-%d')
+
+# Функция для проверки прав доступа
+def is_allowed_user(user_id):
+    """
+    Проверяет, имеет ли пользователь права администратора или модератора.
+
+    :param user_id: ID пользователя.
+    :return: True, если пользователь имеет права, иначе False.
+    """
+
+
+    logger.info(user_id in ADMIN_IDS + MODER_IDS)
+
+    return user_id in ADMIN_IDS + MODER_IDS
+
+# Функция для открытия соединения с базой данных
+def open_connection():
+    """
+    Открывает соединение с базой данных PostgreSQL.
+
+    :return: Объект соединения с базой данных.
+    :raises: Исключение, если подключение не удалось.
+    """
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        logger.info("Успешное подключение к базе данных")
+        return conn
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка подключения к базе данных: {e}")
+        raise
+
+def close_connection(conn):
+    """
+    Закрывает соединение с базой данных.
+
+    :param conn: Объект соединения с базой данных.
+    """
+    if conn:
+        conn.close()
+        logger.info("Соединение с базой данных закрыто")
+

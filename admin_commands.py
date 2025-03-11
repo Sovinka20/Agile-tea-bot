@@ -8,10 +8,7 @@ from dotenv import load_dotenv
 from telebot import types
 
 from message_utils import save_message_id, try_delete_message
-from utils import get_current_date, is_allowed_user
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from utils import get_current_date, is_allowed_user, logger
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
@@ -38,7 +35,7 @@ def update_achievement_image(message, bot):
         bot.register_next_step_handler(message, process_achievement_image_update, bot)
 
     except Exception as e:
-        logging.error(f"Ошибка в команде /update_achievement_image: {e}")
+        logger.error(f"Ошибка в команде /update_achievement_image: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 def process_achievement_image_update(message, bot):
@@ -81,11 +78,18 @@ def process_achievement_image_update(message, bot):
         bot.send_message(message.chat.id, f"Изображение для достижения с ID {achievement_id} успешно обновлено!")
 
     except Exception as e:
-        logging.error(f"Ошибка при обновлении изображения достижения: {e}")
+        logger.error(f"Ошибка при обновлении изображения достижения: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
 # Общая функция для добавления достижений
 def add_achievement(cur, user_id, achievement_id):
+    """
+    Добавляет достижение пользователю в таблицу user_achievements.
+
+    :param cur: Курсор базы данных.
+    :param user_id: ID пользователя.
+    :param achievement_id: ID достижения.
+    """
     current_date = get_current_date()
     cur.execute('''
         INSERT INTO user_achievements (user_id, achievement_id, date_achieved)
@@ -94,6 +98,14 @@ def add_achievement(cur, user_id, achievement_id):
 
 # Функция для проверки наличия достижения у пользователя
 def has_achievement(cur, user_id, achievement_id):
+    """
+    Проверяет, есть ли у пользователя указанное достижение.
+
+    :param cur: Курсор базы данных.
+    :param user_id: ID пользователя.
+    :param achievement_id: ID достижения.
+    :return: True, если достижение есть, иначе False.
+    """
     cur.execute('''
         SELECT COUNT(*) FROM user_achievements
         WHERE user_id = %s AND achievement_id = %s
@@ -120,20 +132,22 @@ def update_user_counts(cur, user_id):
 
 # Обнолвени таблицы uniqie_users
 def add_content(message, bot):
-    try:
-        logging.info(is_allowed_user(message.from_user.id))
+    """
+    Обновляет таблицу unique_users и добавляет достижения пользователям.
 
+    :param message: Объект сообщения от пользователя.
+    :param bot: Экземпляр бота.
+    """
+    try:
         if not is_allowed_user(message.from_user.id):
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
             save_message_id(message.chat.id, 'command', message.message_id)
             try_delete_message(bot, message.chat.id, 'command')
-            # return
-
+            return
 
         bot.send_message(message.chat.id, "Процесс запущен, ожидайте...")
         save_message_id(message.chat.id, 'command', message.message_id)
         try_delete_message(bot, message.chat.id, 'command')
-
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
@@ -194,13 +208,20 @@ def add_content(message, bot):
         bot.send_message(message.chat.id, "Достижения и счетчики успешно пересчитаны для всех пользователей.")
 
     except Exception as e:
-        logging.exception("Ошибка при пересчете достижений и счетчиков")
+        logger.exception("Ошибка при пересчете достижений и счетчиков")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-    finally:
-        conn.close()
 
 # Общая функция для получения и отправки данных
 def fetch_and_send_data(call, message, bot, query, output_file):
+    """
+    Получает данные из базы данных и отправляет их в виде Excel-файла.
+
+    :param call: Объект колбэка.
+    :param message: Объект сообщения от пользователя.
+    :param bot: Экземпляр бота.
+    :param query: SQL-запрос для получения данных.
+    :param output_file: Имя файла для сохранения данных.
+    """
     try:
         if not is_allowed_user(call.from_user.id):
             bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
@@ -223,15 +244,21 @@ def fetch_and_send_data(call, message, bot, query, output_file):
         with open(output_file, 'rb') as file:
             bot.send_document(message.chat.id, file)
 
-        logging.info(f"Данные успешно сохранены в {output_file} и отправлены пользователю {message.from_user.id}")
+        logger.info(f"Данные успешно сохранены в {output_file} и отправлены пользователю {message.from_user.id}")
     except Exception as e:
-        logging.exception(f"Ошибка при получении данных: {e}")
+        logger.exception(f"Ошибка при получении данных: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-    finally:
-        conn.close()
+
 
 # Обработчик команды /get_users_achievements_data
 def get_users_achievements_data(call, message, bot):
+    """
+    Получает данные о достижениях пользователей и отправляет их в виде Excel-файла.
+
+    :param call: Объект колбэка.
+    :param message: Объект сообщения от пользователя.
+    :param bot: Экземпляр бота.
+    """
     query = '''
         SELECT user_achievement_id, user_id, achievement_id, date_achieved FROM user_achievements
     '''
@@ -240,6 +267,13 @@ def get_users_achievements_data(call, message, bot):
 
 # Обработчик команды /get_users_data
 def get_users_data(call, message, bot):
+    """
+    Получает данные о пользователях и отправляет их в виде Excel-файла.
+
+    :param call: Объект колбэка.
+    :param message: Объект сообщения от пользователя.
+    :param bot: Экземпляр бота.
+    """
     query = '''
         SELECT user_id, username, date, select_tea, age, gender FROM users
     '''
@@ -247,6 +281,13 @@ def get_users_data(call, message, bot):
 
 # Обработчик команды /get_unique_users_data
 def get_unique_users_data(call, message, bot):
+    """
+    Получает данные об уникальных пользователях и отправляет их в виде Excel-файла.
+
+    :param call: Объект колбэка.
+    :param message: Объект сообщения от пользователя.
+    :param bot: Экземпляр бота.
+    """
     query = '''
         SELECT user_id, username, date_start, date_last, age, gender, evaluation, count_achievements FROM unique_users
     '''
@@ -254,24 +295,30 @@ def get_unique_users_data(call, message, bot):
 
 # Проверка наличия необходимых переменных окружения
 if not DATABASE_URL:
-    logging.error("Переменная окружения DATABASE_URL не определена.")
+    logger.error("Переменная окружения DATABASE_URL не определена.")
     exit(1)
 
 # Проверка наличия таблиц в базе данных перед выполнением запросов
 def check_table_exists(table_name):
+    """
+    Проверяет, существует ли таблица в базе данных.
+
+    :param table_name: Имя таблицы.
+    :return: True, если таблица существует, иначе False.
+    """
     with psycopg2.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
             return cur.fetchone()[0]
 
 if not check_table_exists('users'):
-    logging.error("Таблица 'users' не существует.")
+    logger.error("Таблица 'users' не существует.")
     exit(1)
 
 if not check_table_exists('unique_users'):
-    logging.error("Таблица 'unique_users' не существует.")
+    logger.error("Таблица 'unique_users' не существует.")
     exit(1)
 
 if not check_table_exists('user_achievements'):
-    logging.error("Таблица 'user_achievements' не существует.")
+    logger.error("Таблица 'user_achievements' не существует.")
     exit(1)

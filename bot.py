@@ -12,8 +12,12 @@ from telebot import types
 from admin_commands import (add_content, get_unique_users_data,
                             get_users_achievements_data, get_users_data,
                             update_achievement_image)
+from commands import (button, create_age, create_evaluation,
+                      create_favorite_tea, create_gender, edit_profile, help,
+                      my_achievements, my_commands, my_profile, new_tea, start,
+                      tea_random, unknown_command)
 from message_utils import save_message_id, try_delete_message
-from utils import (close_connection, get_current_date, is_allowed_user,
+from utils import (close_connection, get_current_date, is_allowed_user, logger,
                    open_connection)
 
 # Загрузка переменных окружения из файла .env
@@ -22,72 +26,40 @@ load_dotenv()
 # Получение переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
 TOKEN = os.getenv('TOKEN')
-# ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
-# MODER_USER_IDS = list(map(int, os.getenv('MODER_USER_IDS').split(',')))
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Создание экземпляра бота
 bot = telebot.TeleBot(TOKEN)
 
-# Словарь для сопоставления текста на кнопках с полями в базе данных
-button_to_field = {
-    'age_14': 'age',
-    'age_15_21': 'age',
-    'age_22_45': 'age',
-    'age_45+': 'age',
-    'gender_male': 'gender',
-    'gender_female': 'gender',
-    'eval_1': 'evaluation',
-    'eval_2': 'evaluation',
-    'eval_3': 'evaluation',
-    'eval_4': 'evaluation',
-    'eval_5': 'evaluation',
-    'tea_1': 'favorite_tea',
-    'tea_2': 'favorite_tea',
-    'tea_3': 'favorite_tea',
-    'tea_4': 'favorite_tea',
-    'tea_5': 'favorite_tea',
-    'tea_6': 'favorite_tea',
-    'tea_7': 'favorite_tea',
-    'tea_8': 'favorite_tea',
-    'tea_9': 'favorite_tea',
-    'tea_10': 'favorite_tea',
-    'tea_11': 'favorite_tea',
-    'tea_12': 'favorite_tea',
-    'cancel': None  # Отмена не требует обновления данных
-}
 
-# Словарь для сопоставления текста на кнопках с конкретными значениями
-button_to_value = {
-    'age_14': 'до 14',
-    'age_15_21': 'от 15 до 21',
-    'age_22_45': 'от 22 до 45',
-    'age_45+': '45+',
-    'gender_male': 'муж.',
-    'gender_female': 'жен.',
-    'eval_1': 1,
-    'eval_2': 2,
-    'eval_3': 3,
-    'eval_4': 4,
-    'eval_5': 5,
-    'tea_1': 1,
-    'tea_2': 2,
-    'tea_3': 3,
-    'tea_4': 4,
-    'tea_5': 5,
-    'tea_6': 6,
-    'tea_7': 7,
-    'tea_8': 8,
-    'tea_9': 9,
-    'tea_10': 10,
-    'tea_11': 11,
-    'tea_12': 12,
-    'cancel': None  # Отмена не требует обновления данных
-}
 
+
+# Словарь для сопоставления текста на кнопках с полями и значениями в базе данных
+button_mapping = {
+    'age_14': {'field': 'age', 'value': 'до 14'},
+    'age_15_21': {'field': 'age', 'value': 'от 15 до 21'},
+    'age_22_45': {'field': 'age', 'value': 'от 22 до 45'},
+    'age_45+': {'field': 'age', 'value': '45+'},
+    'gender_male': {'field': 'gender', 'value': 'муж.'},
+    'gender_female': {'field': 'gender', 'value': 'жен.'},
+    'eval_1': {'field': 'evaluation', 'value': 1},
+    'eval_2': {'field': 'evaluation', 'value': 2},
+    'eval_3': {'field': 'evaluation', 'value': 3},
+    'eval_4': {'field': 'evaluation', 'value': 4},
+    'eval_5': {'field': 'evaluation', 'value': 5},
+    'tea_1': {'field': 'favorite_tea', 'value': 1},
+    'tea_2': {'field': 'favorite_tea', 'value': 2},
+    'tea_3': {'field': 'favorite_tea', 'value': 3},
+    'tea_4': {'field': 'favorite_tea', 'value': 4},
+    'tea_5': {'field': 'favorite_tea', 'value': 5},
+    'tea_6': {'field': 'favorite_tea', 'value': 6},
+    'tea_7': {'field': 'favorite_tea', 'value': 7},
+    'tea_8': {'field': 'favorite_tea', 'value': 8},
+    'tea_9': {'field': 'favorite_tea', 'value': 9},
+    'tea_10': {'field': 'favorite_tea', 'value': 10},
+    'tea_11': {'field': 'favorite_tea', 'value': 11},
+    'tea_12': {'field': 'favorite_tea', 'value': 12},
+    'cancel': {'field': None, 'value': None}  # Отмена не требует обновления данных
+}
 
 # Функция для повторных попыток подключения к базе данных
 def connect_to_db(max_retries=3, delay=5):
@@ -95,65 +67,56 @@ def connect_to_db(max_retries=3, delay=5):
     while retries < max_retries:
         try:
             conn = psycopg2.connect(DATABASE_URL)
-            logging.info("Успешное подключение к базе данных")
+            logger.info("Успешное подключение к базе данных")
             return conn
         except Exception as e:
-            logging.error(f"Ошибка подключения к базе данных: {e}")
+            logger.error(f"Ошибка подключения к базе данных: {e}")
             retries += 1
             time.sleep(delay)
-    logging.error("Превышено количество попыток подключения к базе данных")
+    logger.error("Превышено количество попыток подключения к базе данных")
     return None
 
 # Функция для получения содержимого по id из таблицы bot_content
 def get_content_by_id(content_id):
     try:
-        with conn.cursor() as cur:
-            cur.execute('SELECT content, image, tea_name, quote_agile, question, link, id FROM bot_content WHERE id = %s', (content_id,))
-            result = cur.fetchone()
-            if result:
-                return result
-            else:
-                return (None, None, None, None, None, None, None)
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT content, image, tea_name, quote_agile, question, link, id FROM bot_content WHERE id = %s', (content_id,))
+                result = cur.fetchone()
+                return result if result else (None, None, None, None, None, None, None)
     except Exception as e:
-        logging.error(f"Ошибка при выполнении SQL-запроса: {e}")
+        logger.error(f"Ошибка при выполнении SQL-запроса: {e}")
         return (None, None, None, None, None, None, None)
 
 # Функция для добавления данных в таблицу users
 def add_user_data(user_id, username, select_tea):
-    conn = connect_to_db()
-    if conn is None:
-        return
     date = get_current_date()
     try:
-        with conn.cursor() as cur:
-            cur.execute('''
-                INSERT INTO users (user_id, username, date, select_tea, age, gender)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            ''', (user_id, username, date, select_tea, 0, 'u'))
-            conn.commit()
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    INSERT INTO users (user_id, username, date, select_tea, age, gender)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                ''', (user_id, username, date, select_tea, 0, 'u'))
+                conn.commit()
     except Exception as e:
-        logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
-    finally:
-        conn.close()
+        logger.error(f"Ошибка при добавлении данных в таблицу users: {e}")
 
 # Общая функция для добавления достижений
 def add_select_all_data_tea(user_id, select_id):
-    conn = connect_to_db()
-    if conn is None:
-        return
     date = get_current_date()
     try:
-        with conn.cursor() as cur:
-            cur.execute('''
-            INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
-            VALUES (%s, %s, %s)
-        ''', (user_id, select_id, date))
-        conn.commit()
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    INSERT INTO users_all_data_card_tea (user_id, select_id, date_achieved)
+                    VALUES (%s, %s, %s)
+                ''', (user_id, select_id, date))
+                conn.commit()
     except Exception as e:
-        logging.error(f"Ошибка при добавлении данных в таблицу users: {e}")
-    finally:
-        conn.close()
+        logger.error(f"Ошибка при добавлении данных в таблицу users: {e}")
 
+# Функция для обновления данных пользователя
 def update_user_data(message, id_users, button_data):
     """
     Обновляет данные пользователя в таблице unique_users по id_users на основе текста на кнопках.
@@ -161,28 +124,20 @@ def update_user_data(message, id_users, button_data):
     :param id_users: ID пользователя в таблице unique_users.
     :param button_data: Текст на кнопке, который нужно обработать.
     """
-    conn = connect_to_db()
-    if conn is None:
-        return
+    mapping = button_mapping.get(button_data)
+    if not mapping or not mapping['field']:
+        return  # Если кнопка "Отмена" или неизвестная кнопка, ничего не делаем
+
     try:
-        # Получаем поле и значение для обновления
-        field = button_to_field.get(button_data)
-        value = button_to_value.get(button_data)
-
-        if field is None or value is None:
-            return  # Если кнопка "Отмена" или неизвестная кнопка, ничего не делаем
-
-        with conn.cursor() as cur:
-            # Формирование SQL-запроса для обновления данных
-            query = f"UPDATE unique_users SET {field} = %s WHERE user_id = %s"
-            cur.execute(query, (value, id_users))
-            conn.commit()
-            logging.info(f"Данные пользователя с id_users={id_users} обновлены: {field}={value}")
-            bot.send_message(message.chat.id, "Данные успешно обновлены!")
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                query = f"UPDATE unique_users SET {mapping['field']} = %s WHERE user_id = %s"
+                cur.execute(query, (mapping['value'], id_users))
+                conn.commit()
+                logger.info(f"Данные пользователя с id_users={id_users} обновлены: {mapping['field']}={mapping['value']}")
+                bot.send_message(message.chat.id, "Данные успешно обновлены!")
     except Exception as e:
-        logging.error(f"Ошибка при обновлении данных пользователя с id_users={id_users}: {e}")
-    finally:
-        conn.close()
+        logger.error(f"Ошибка при обновлении данных пользователя с id_users={id_users}: {e}")
 
 # Регистрация обработчиков команд
 @bot.message_handler(commands=['start'])
@@ -271,110 +226,53 @@ def handle_my_achievements(message):
     my_achievements(message, bot)
 
 # Обработчик колбэков
+callback_handlers = {
+    'get_users_data': lambda call: get_users_data(call, call.message, bot),
+    'get_unique_users_data': lambda call: get_unique_users_data(call, call.message, bot),
+    'get_users_achievements_data': lambda call: get_users_achievements_data(call, call.message, bot),
+    'start': lambda call: start(call.message, bot),
+    'new_tea': lambda call: new_tea(call.message, bot),
+    'tea_random': lambda call: tea_random(call.message, bot),
+    'help': lambda call: help(call.message, bot),
+    'cancel': lambda call: bot.delete_message(call.message.chat.id, call.message.message_id),
+    'my_profile': lambda call: my_profile(call.message, bot),
+    'edit_profile': lambda call: edit_profile(call.message, bot),
+    'create_age': lambda call: create_age(call.message, bot),
+    'create_gender': lambda call: create_gender(call.message, bot),
+    'create_favorite_tea': lambda call: create_favorite_tea(call.message, bot),
+    'create_evaluation': lambda call: create_evaluation(call.message, bot),
+    'my_achievements': lambda call: my_achievements(call.message, bot),
+}
+
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
     try:
-        if call.data == 'get_users_data':
-            get_users_data(call, call.message, bot)
-        elif call.data == 'get_unique_users_data':
-            get_unique_users_data(call, call.message, bot)
-        elif call.data == 'get_users_achievements_data':
-            get_users_achievements_data(call, call.message, bot)
-        elif call.data == 'start':
-            from commands import start
-            start(call.message, bot)
-        elif call.data == 'new_tea':
-            from commands import new_tea
-            new_tea(call.message, bot)
-        elif call.data == 'tea_random':
-            from commands import tea_random
-            tea_random(call.message, bot)
-        elif call.data == 'help':
-            from commands import help
-            help(call.message, bot, try_delete_message, save_message_id)
-        elif call.data == 'cancel':
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            try_delete_message(bot, call.message.chat.id, 'command')
-        elif call.data == 'my_profile':
-            from commands import my_profile
-            my_profile(call.message, bot)
-        elif call.data == 'edit_profile':
-            from commands import edit_profile
-            edit_profile(call.message, bot)
-        
-        elif call.data == 'create_age':
-            from commands import create_age
-            create_age(call.message, bot)
-        elif call.data == 'create_gender':
-            from commands import create_gender
-            create_gender(call.message, bot)
-        elif call.data == 'create_favorite_tea':
-            from commands import create_favorite_tea
-            create_favorite_tea(call.message, bot)
-        elif call.data == 'create_evaluation':
-            from commands import create_evaluation
-            create_evaluation(call.message, bot)
-        elif call.data == 'my_achievements':
-            from commands import my_achievements
-            my_achievements(call.message, bot)
-            
-        elif call.data.startswith('age_'):
+        handler = callback_handlers.get(call.data)
+        if handler:
+            handler(call)
+        elif call.data.startswith(('age_', 'gender_', 'tea_', 'eval_')):
             update_user_data(call.message, call.from_user.id, call.data)
-        elif call.data.startswith('gender_'):
-            update_user_data(call.message, call.from_user.id, call.data)
-        elif call.data.startswith('tea_'):
-            update_user_data(call.message, call.from_user.id, call.data)
-        elif call.data.startswith('eval_'):
-            update_user_data(call.message, call.from_user.id, call.data)
-        elif call.data.startswith('view_profile'):
-            handle_view_profile_callback(call)
-        elif call.data.startswith('edit_profile'):
-            handle_edit_profile_callback(call)
-        elif call.data.startswith('edit_'):
-            handle_edit_callback(call)
-        elif call.data == 'more_tea':
-            handle_more_tea_callback(call)
         else:
-            from commands import button
             button(call, bot)
 
         bot.delete_message(call.message.chat.id, call.message.message_id)
         try_delete_message(bot, call.message.chat.id, 'command')
     except Exception as e:
-        logging.error(f"Ошибка при обработке колбэка: {e}")
+        logger.error(f"Ошибка при обработке колбэка: {e}")
 
 @bot.message_handler(func=lambda message: True)
 def handle_unknown_command(message):
-    from commands import unknown_command
-    unknown_command(message, bot, try_delete_message, save_message_id)
-    try_delete_message(bot, message.chat.id, 'command')
+    unknown_command(message, bot)
 
 # Запуск бота с повторными попытками
-def start_polling():
-    while True:
+def start_polling(max_retries=10):
+    retries = 0
+    while retries < max_retries:
         try:
             bot.polling(none_stop=True)
-        except requests.exceptions.ConnectionError as e:
-            logging.error(f"Ошибка подключения: {e}")
-            time.sleep(10)
-        except requests.exceptions.ReadTimeout as e:
-            logging.error(f"Ошибка таймаута чтения: {e}")
-            time.sleep(10)
-        except requests.exceptions.Timeout as e:
-            logging.error(f"Ошибка таймаута: {e}")
-            time.sleep(10)
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Ошибка запроса: {e}")
-            time.sleep(10)
-        except telebot.apihelper.ApiTelegramException as e:
-            if e.error_code == 502:
-                logging.warning(f"Ошибка 502 Bad Gateway: {e}")
-                time.sleep(10)
-            else:
-                logging.error(f"Ошибка API Telegram: {e}")
-                time.sleep(10)
         except Exception as e:
-            logging.error(f"Непредвиденная ошибка: {e}")
+            logger.error(f"Ошибка при запуске бота: {e}")
+            retries += 1
             time.sleep(10)
 
 # Запуск опроса
