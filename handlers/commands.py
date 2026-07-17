@@ -1,3 +1,5 @@
+import io
+from telebot.types import InputFile
 import logging
 import os
 
@@ -32,10 +34,8 @@ def get_content_by_id_commands(content_id):
 # Обработчик команды /my_achievements
 def my_achievements(message, bot):
     """
-    Отправляет пользователю его достижения.
-
-    :param message: Объект сообщения от пользователя.
-    :param bot: Экземпляр бота.
+    Отправляет пользователю его достижения с картинками и текстом из БД.
+    GIF отображается как анимация через BytesIO с именем файла.
     """
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
@@ -46,45 +46,37 @@ def my_achievements(message, bot):
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                                # Получаем количество выборов чая пользователем
+                cur.execute('''
+                    SELECT achievement_id FROM user_achievements WHERE user_id = %s
+                ''', (user_id,))
+                achievement_ids = [row[0] for row in cur.fetchall()]
 
-                bot.send_message(user_id, "Поздравляем! Ваше новое достижение - КУСОЧЕК САХАРА!")
-                sugar_file_path = os.path.join('a_piece_of_sugar.gif')
-                if os.path.exists(sugar_file_path):
-                    with open(sugar_file_path, 'rb') as file:
-                        bot.send_document(user_id, file)
-                else:
-                    logger.error(f"Файл '{sugar_file_path}' не найден.")
+                if not achievement_ids:
+                    bot.send_message(user_id, "У вас пока нет достижений. Продолжайте выбирать чай!")
+                    return
 
-                cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (user_id,))
-                count = cur.fetchone()[0]
-                # Получаем достижения, которые соответствуют текущему количеству выборов
-
-                if count >= 12:
-                    bot.send_message(user_id, "Поздравляем! Ваше новое достижение - Чайный лист! Вы выбрали чаи 12 раз!")
-                    tea_leaf_file_path = os.path.join('tea_leaf.gif')
-                    if os.path.exists(tea_leaf_file_path):
-                        with open(tea_leaf_file_path, 'rb') as file:
-                            bot.send_document(user_id, file)
+                for ach_id in achievement_ids:
+                    cur.execute('''
+                        SELECT achievement_name, description, image_achievements
+                        FROM achievements
+                        WHERE achievement_id = %s
+                    ''', (ach_id,))
+                    row = cur.fetchone()
+                    if row:
+                        name, desc, image_data = row
+                        caption = f"{desc}\n{name}" if desc else name if name else f"Достижение #{ach_id}"
+                        if image_data:
+                            # Ключевой момент: BytesIO + .name
+                            gif_file = io.BytesIO(image_data)
+                            gif_file.name = f'achievement_{ach_id}.gif'
+                            bot.send_animation(user_id, gif_file, caption=caption)
+                        else:
+                            bot.send_message(user_id, caption)
                     else:
-                        logger.error(f"Файл '{tea_leaf_file_path}' не найден.")
-
-                if count >= 20:
-                                                # Отправляем изображение, если оно есть
-
-                    bot.send_message(user_id, "Поздравляем! Ваше новое достижение - Чайный пакетик! Вы выбрали чай 20 раз!")
-                    tea_bag_file_path = os.path.join('tea_bag.gif')
-                    if os.path.exists(tea_bag_file_path):
-                        with open(tea_bag_file_path, 'rb') as file:
-                            bot.send_document(user_id, file)
-                    else:
-                        logger.error(f"Файл '{tea_bag_file_path}' не найден.")
-
+                        bot.send_message(user_id, f"Достижение #{ach_id} (не найдено в базе)")
     except Exception as e:
         logger.exception("Ошибка при отправке достижений")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Функция для добавления данных в таблицу users
 def add_user_data(user_id, username, select_tea):
     """
     Добавляет данные пользователя в таблицу users.
