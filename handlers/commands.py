@@ -4,8 +4,8 @@ import os
 import psycopg2
 from telebot import types
 
-from message_utils import save_message_id, try_delete_message
-from utils import (close_connection, get_current_date, is_allowed_user, logger,
+from utils.message_utils import save_message_id, try_delete_message
+from utils.helpers import (close_connection, get_current_date, is_allowed_user, logger,
                    open_connection)
 
 # Получение переменных окружения

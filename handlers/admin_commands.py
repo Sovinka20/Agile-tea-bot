@@ -7,8 +7,8 @@ import psycopg2
 from dotenv import load_dotenv
 from telebot import types
 
-from message_utils import save_message_id, try_delete_message
-from utils import get_current_date, is_allowed_user, logger
+from utils.message_utils import save_message_id, try_delete_message
+from utils.helpers import get_current_date, is_allowed_user, logger
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()

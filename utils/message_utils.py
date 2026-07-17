@@ -2,7 +2,7 @@ import logging
 
 from telebot import types
 
-from utils import logger
+from utils.helpers import logger
 
 # Словарь для хранения идентификаторов сообщений с командами и клавиатурой
 message_ids = {}
