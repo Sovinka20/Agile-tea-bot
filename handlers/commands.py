@@ -57,14 +57,14 @@ def my_achievements(message, bot):
 
                 for ach_id in achievement_ids:
                     cur.execute('''
-                        SELECT achievement_name, description, image_achievements
+                        SELECT description, image_achievements
                         FROM achievements
                         WHERE achievement_id = %s
                     ''', (ach_id,))
                     row = cur.fetchone()
                     if row:
-                        name, desc, image_data = row
-                        caption = f"{desc}\n{name}" if desc else name if name else f"Достижение #{ach_id}"
+                        desc, image_data = row
+                        caption = f"{desc}" if desc else f"Достижение #{ach_id}"
                         if image_data:
                             # Ключевой момент: BytesIO + .name
                             gif_file = io.BytesIO(image_data)
@@ -520,10 +520,21 @@ def tea_random(message, bot):
 <i>"{content}"</i>
 
 """
+                        # Создаем клавиатуру с кнопками
+                    keyboard = types.InlineKeyboardMarkup()
+                    
+                    # Кнопка для изменения formatted_content
+                    change_button = types.InlineKeyboardButton(text=question, callback_data=f"change_{content_id}")
+                    keyboard.add(change_button)
+                    
+                    # Кнопка для открытия URL
+                    url_button = types.InlineKeyboardButton(text="Cсылка :)", url=link)
+                    keyboard.add(url_button)
+
                     if image:
-                        bot.send_photo(message.chat.id, image, caption=formatted_content, parse_mode='HTML')
+                        bot.send_photo(message.chat.id, image, caption=formatted_content, parse_mode='HTML', reply_markup=keyboard)
                     else:
-                        bot.send_message(message.chat.id, formatted_content, parse_mode='HTML')
+                        bot.send_message(message.chat.id, formatted_content, parse_mode='HTML', reply_markup=keyboard)
                     # Сохранение записи в таблицу users
                     add_user_data(message.from_user.id, message.from_user.username, content_id)
                 else:
