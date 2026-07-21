@@ -1,3 +1,7 @@
+# FILE: main.py
+# ROLE: Точка входа, регистрация обработчиков и запуск бота
+# DEPENDS: handlers/, config.py
+# COMMANDS: (нет)
 import logging
 import os
 import time

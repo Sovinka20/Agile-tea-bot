@@ -1,3 +1,7 @@
+# FILE: keyboards.py
+# ROLE: Фабрика inline-клавиатур
+# DEPENDS: telebot
+# COMMANDS: (нет)
 from telebot import types
 
 def create_tea_keyboard():

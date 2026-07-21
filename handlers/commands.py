@@ -1,3 +1,19 @@
+# FILE: handlers/commands.py
+# ROLE: Пользовательские команды
+# DEPENDS: services/, utils/, keyboards.py
+# COMMANDS:
+#   /start (все) – приветствие и регистрация пользователя
+#   /new_tea (все) – выбрать чай из списка (1–12)
+#   /help (все) – показать справку
+#   /my_achievements (все) – показать полученные достижения
+#   /tea_random (все) – случайный чай с полной карточкой и кнопками
+#   /my_commands (все) – главное меню команд
+#   /edit_profile (все) – редактировать профиль (возраст, пол, любимый чай, оценка)
+#   /create_age (все) – установить возраст
+#   /create_gender (все) – установить пол
+#   /create_favorite_tea (все) – установить любимый чай
+#   /create_evaluation (все) – оценить бота (1–5 звёзд)
+#   /my_profile (все) – показать профиль пользователя
 import io
 from telebot.types import InputFile
 import logging

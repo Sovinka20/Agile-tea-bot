@@ -1,3 +1,7 @@
+# FILE: services/user_service.py
+# ROLE: Бизнес-логика работы с пользователями
+# DEPENDS: database.py, utils/
+# COMMANDS: (нет)
 from database import get_db_connection
 from utils.helpers import get_current_date
 import logging

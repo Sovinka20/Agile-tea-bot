@@ -1,3 +1,7 @@
+# FILE: utils/helpers.py
+# ROLE: Вспомогательные утилиты (дата, права доступа, логирование)
+# DEPENDS: config.py
+# COMMANDS: (нет)
 import logging
 import os
 import time

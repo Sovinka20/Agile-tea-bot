@@ -1,3 +1,12 @@
+# FILE: handlers/admin_commands.py
+# ROLE: Административные команды
+# DEPENDS: utils/, services/
+# COMMANDS:
+#   /add_content (админ/модер) – пересчитать достижения и обновить таблицу unique_users
+#   /update_achievement_image (админ) – обновить изображение достижения по ID
+#   /get_users_data (админ/модер) – выгрузить все данные пользователей (users) в Excel
+#   /get_unique_users_data (админ/модер) – выгрузить уникальных пользователей (unique_users) в Excel
+#   /get_users_achievements_data (админ/модер) – выгрузить достижения пользователей (user_achievements) в Excel
 import logging
 import os
 from datetime import datetime

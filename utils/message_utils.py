@@ -1,3 +1,7 @@
+# FILE: utils/message_utils.py
+# ROLE: Управление сообщениями (сохранение ID, удаление)
+# DEPENDS: utils/
+# COMMANDS: (нет)
 import logging
 
 from telebot import types

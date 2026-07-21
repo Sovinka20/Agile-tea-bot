@@ -1,3 +1,7 @@
+# FILE: config.py
+# ROLE: Загрузка переменных окружения
+# DEPENDS: .env
+# COMMANDS: (нет)
 import os
 from dotenv import load_dotenv
 

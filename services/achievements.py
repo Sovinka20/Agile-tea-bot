@@ -1,3 +1,7 @@
+# FILE: services/achievements.py
+# ROLE: Логика проверки и выдачи достижений
+# DEPENDS: database.py
+# COMMANDS: (нет)
 from database import get_db_connection
 import logging
 
