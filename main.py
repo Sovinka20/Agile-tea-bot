@@ -1,3 +1,7 @@
+# FILE: main.py
+# ROLE: Точка входа, регистрация обработчиков и запуск бота
+# DEPENDS: handlers/, config.py
+# COMMANDS: (нет)
 import logging
 import os
 import time
@@ -9,15 +13,15 @@ import telebot
 from dotenv import load_dotenv
 from telebot import types
 
-from admin_commands import (add_content, get_unique_users_data,
+from handlers.admin_commands import (add_content, get_unique_users_data,
                             get_users_achievements_data, get_users_data,
                             update_achievement_image)
-from commands import (button, create_age, create_evaluation,
+from handlers.commands import (button, create_age, create_evaluation,
                       create_favorite_tea, create_gender, edit_profile, help,
                       my_achievements, my_commands, my_profile, new_tea, start,
                       tea_random, unknown_command)
-from message_utils import save_message_id, try_delete_message
-from utils import (close_connection, get_current_date, is_allowed_user, logger,
+from utils.message_utils import save_message_id, try_delete_message
+from utils.helpers import (close_connection, get_current_date, is_allowed_user, logger,
                    open_connection)
 
 # Загрузка переменных окружения из файла .env
@@ -142,87 +146,87 @@ def update_user_data(message, id_users, button_data):
 # Регистрация обработчиков команд
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    from commands import start
+    from handlers.commands import start
     start(message, bot)
 
 @bot.message_handler(commands=['new_tea'])
 def handle_new_tea(message):
-    from commands import new_tea
+    from handlers.commands import new_tea
     new_tea(message, bot)
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
-    from commands import help
+    from handlers.commands import help
     help(message, bot)
 
 @bot.message_handler(commands=['add_content'])
 def handle_add_content(message):
-    from admin_commands import add_content
+    from handlers.admin_commands import add_content
     add_content(message, bot)
 
 @bot.message_handler(commands=['update_achievement_image'])
 def handle_update_achievement_image(message):
-    from admin_commands import update_achievement_image
+    from handlers.admin_commands import update_achievement_image
     update_achievement_image(message, bot)
 
 @bot.message_handler(commands=['get_users_data'])
 def handle_get_users_data(message):
-    from admin_commands import get_users_data
+    from handlers.admin_commands import get_users_data
     get_users_data(message, bot)
 
 @bot.message_handler(commands=['get_unique_users_data'])
 def handle_get_unique_users_data(message):
-    from admin_commands import get_unique_users_data
+    from handlers.admin_commands import get_unique_users_data
     get_unique_users_data(message, bot)
 
 @bot.message_handler(commands=['get_users_achievements_data'])
 def handle_get_users_achievements_data(message):
-    from admin_commands import get_users_achievements_data
+    from handlers.admin_commands import get_users_achievements_data
     get_users_achievements_data(message, bot)
 
 @bot.message_handler(commands=['my_commands'])
 def handle_my_commands_command(message):
-    from commands import my_commands
+    from handlers.commands import my_commands
     my_commands(message, bot)
 
 @bot.message_handler(commands=['create_age'])
 def handle_create_age(message):
-    from commands import create_age
+    from handlers.commands import create_age
     create_age(message, bot)
 
 @bot.message_handler(commands=['create_gender'])
 def handle_create_gender(message):
-    from commands import create_gender
+    from handlers.commands import create_gender
     create_gender(message, bot)
 
 @bot.message_handler(commands=['create_favorite_tea'])
 def handle_create_favorite_tea(message):
-    from commands import create_favorite_tea
+    from handlers.commands import create_favorite_tea
     create_favorite_tea(message, bot)
 
 @bot.message_handler(commands=['create_evaluation'])
 def handle_create_evaluation(message):
-    from commands import create_evaluation
+    from handlers.commands import create_evaluation
     create_evaluation(message, bot)
 
 @bot.message_handler(commands=['my_profile'])
 def handle_my_profile(message):
-    from commands import my_profile
+    from handlers.commands import my_profile
     my_profile(message, bot)
 
 @bot.message_handler(commands=['edit_profile'])
 def handle_my_profile(message):
-    from commands import edit_profile
+    from handlers.commands import edit_profile
     edit_profile(message, bot)
 
 @bot.message_handler(commands=['tea_random'])
 def handle_tea_random(message):
-    from commands import tea_random
+    from handlers.commands import tea_random
     tea_random(message, bot)
 
 @bot.message_handler(commands=['my_achievements'])
 def handle_my_achievements(message):
-    from commands import my_achievements
+    from handlers.commands import my_achievements
     my_achievements(message, bot)
 
 # Обработчик колбэков

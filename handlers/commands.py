@@ -1,11 +1,29 @@
+# FILE: handlers/commands.py
+# ROLE: Пользовательские команды
+# DEPENDS: services/, utils/, keyboards.py
+# COMMANDS:
+#   /start (все) – приветствие и регистрация пользователя
+#   /new_tea (все) – выбрать чай из списка (1–12)
+#   /help (все) – показать справку
+#   /my_achievements (все) – показать полученные достижения
+#   /tea_random (все) – случайный чай с полной карточкой и кнопками
+#   /my_commands (все) – главное меню команд
+#   /edit_profile (все) – редактировать профиль (возраст, пол, любимый чай, оценка)
+#   /create_age (все) – установить возраст
+#   /create_gender (все) – установить пол
+#   /create_favorite_tea (все) – установить любимый чай
+#   /create_evaluation (все) – оценить бота (1–5 звёзд)
+#   /my_profile (все) – показать профиль пользователя
+import io
+from telebot.types import InputFile
 import logging
 import os
 
 import psycopg2
 from telebot import types
 
-from message_utils import save_message_id, try_delete_message
-from utils import (close_connection, get_current_date, is_allowed_user, logger,
+from utils.message_utils import save_message_id, try_delete_message
+from utils.helpers import (close_connection, get_current_date, is_allowed_user, logger,
                    open_connection)
 
 # Получение переменных окружения
@@ -32,10 +50,8 @@ def get_content_by_id_commands(content_id):
 # Обработчик команды /my_achievements
 def my_achievements(message, bot):
     """
-    Отправляет пользователю его достижения.
-
-    :param message: Объект сообщения от пользователя.
-    :param bot: Экземпляр бота.
+    Отправляет пользователю его достижения с картинками и текстом из БД.
+    GIF отображается как анимация через BytesIO с именем файла.
     """
     try:
         try_delete_message(bot, message.chat.id, 'keyboard')
@@ -46,45 +62,37 @@ def my_achievements(message, bot):
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                                # Получаем количество выборов чая пользователем
+                cur.execute('''
+                    SELECT achievement_id FROM user_achievements WHERE user_id = %s
+                ''', (user_id,))
+                achievement_ids = [row[0] for row in cur.fetchall()]
 
-                bot.send_message(user_id, "Поздравляем! Ваше новое достижение - КУСОЧЕК САХАРА!")
-                sugar_file_path = os.path.join('a_piece_of_sugar.gif')
-                if os.path.exists(sugar_file_path):
-                    with open(sugar_file_path, 'rb') as file:
-                        bot.send_document(user_id, file)
-                else:
-                    logger.error(f"Файл '{sugar_file_path}' не найден.")
+                if not achievement_ids:
+                    bot.send_message(user_id, "У вас пока нет достижений. Продолжайте выбирать чай!")
+                    return
 
-                cur.execute('SELECT COUNT(*) FROM users WHERE user_id = %s', (user_id,))
-                count = cur.fetchone()[0]
-                # Получаем достижения, которые соответствуют текущему количеству выборов
-
-                if count >= 12:
-                    bot.send_message(user_id, "Поздравляем! Ваше новое достижение - Чайный лист! Вы выбрали чаи 12 раз!")
-                    tea_leaf_file_path = os.path.join('tea_leaf.gif')
-                    if os.path.exists(tea_leaf_file_path):
-                        with open(tea_leaf_file_path, 'rb') as file:
-                            bot.send_document(user_id, file)
+                for ach_id in achievement_ids:
+                    cur.execute('''
+                        SELECT description, image_achievements
+                        FROM achievements
+                        WHERE achievement_id = %s
+                    ''', (ach_id,))
+                    row = cur.fetchone()
+                    if row:
+                        desc, image_data = row
+                        caption = f"{desc}" if desc else f"Достижение #{ach_id}"
+                        if image_data:
+                            # Ключевой момент: BytesIO + .name
+                            gif_file = io.BytesIO(image_data)
+                            gif_file.name = f'achievement_{ach_id}.gif'
+                            bot.send_animation(user_id, gif_file, caption=caption)
+                        else:
+                            bot.send_message(user_id, caption)
                     else:
-                        logger.error(f"Файл '{tea_leaf_file_path}' не найден.")
-
-                if count >= 20:
-                                                # Отправляем изображение, если оно есть
-
-                    bot.send_message(user_id, "Поздравляем! Ваше новое достижение - Чайный пакетик! Вы выбрали чай 20 раз!")
-                    tea_bag_file_path = os.path.join('tea_bag.gif')
-                    if os.path.exists(tea_bag_file_path):
-                        with open(tea_bag_file_path, 'rb') as file:
-                            bot.send_document(user_id, file)
-                    else:
-                        logger.error(f"Файл '{tea_bag_file_path}' не найден.")
-
+                        bot.send_message(user_id, f"Достижение #{ach_id} (не найдено в базе)")
     except Exception as e:
         logger.exception("Ошибка при отправке достижений")
         bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-# Функция для добавления данных в таблицу users
 def add_user_data(user_id, username, select_tea):
     """
     Добавляет данные пользователя в таблицу users.
@@ -528,10 +536,21 @@ def tea_random(message, bot):
 <i>"{content}"</i>
 
 """
+                        # Создаем клавиатуру с кнопками
+                    keyboard = types.InlineKeyboardMarkup()
+                    
+                    # Кнопка для изменения formatted_content
+                    change_button = types.InlineKeyboardButton(text=question, callback_data=f"change_{content_id}")
+                    keyboard.add(change_button)
+                    
+                    # Кнопка для открытия URL
+                    url_button = types.InlineKeyboardButton(text="Cсылка :)", url=link)
+                    keyboard.add(url_button)
+
                     if image:
-                        bot.send_photo(message.chat.id, image, caption=formatted_content, parse_mode='HTML')
+                        bot.send_photo(message.chat.id, image, caption=formatted_content, parse_mode='HTML', reply_markup=keyboard)
                     else:
-                        bot.send_message(message.chat.id, formatted_content, parse_mode='HTML')
+                        bot.send_message(message.chat.id, formatted_content, parse_mode='HTML', reply_markup=keyboard)
                     # Сохранение записи в таблицу users
                     add_user_data(message.from_user.id, message.from_user.username, content_id)
                 else:
