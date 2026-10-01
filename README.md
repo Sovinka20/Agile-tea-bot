@@ -1,31 +1,30 @@
-Ваш файл `README.md` уже хорошо структурирован и содержит всю необходимую информацию для понимания и использования проекта. Однако я могу предложить несколько улучшений и дополнений, чтобы сделать его еще более удобным и информативным. Вот обновленная версия:
-
----
-
-### Agile-tea-bot
+# Agile-tea-bot
 
 **Description:** Telegram bot for educational purposes within the framework of the course "Practical course of an Agile leader".
 
-### Чай-бот Agile
+# Чай-бот Agile
 
 **Описание:** Бот телеграмма для учебных целей в рамках курса "Практический курс Agile-лидера".
+
+> ⚠️ **Статус: учебный проект, не развёрнут на сервере.**  
+> Бот требует рефакторинга в части работы с персональными данными — в текущем виде он собирает и хранит данные пользователей (возраст, пол, предпочтения), что требует доработки под требования законодательства РФ о персональных данных (152-ФЗ) перед публичным развёртыванием.
 
 ---
 
 ## Table of Contents
 
 - [Agile-tea-bot](#agile-tea-bot)
-
   - [Description](#description)
   - [Features](#features)
+  - [Screenshots](#screenshots)
   - [Installation](#installation)
   - [Usage](#usage)
   - [Contributing](#contributing)
   - [License](#license)
-
 - [Чай-бот Agile](#чай-бот-agile)
   - [Описание](#описание)
   - [Функционал](#функционал)
+  - [Скриншоты](#скриншоты)
   - [Установка](#установка)
   - [Использование](#использование)
   - [Вклад](#вклад)
@@ -48,12 +47,38 @@ This Telegram bot is designed for educational purposes within the framework of t
 - Customizable commands for different Agile practices.
 - Support for multiple languages (if applicable).
 
+### Screenshots
+
+#### Bot profile
+![Bot profile](./assets/screenshots/bot-profile.png)  
+*Bot profile with description and command list*
+
+#### Chat with tea card
+![Bot chat](./assets/screenshots/bot-chat.png)  
+*Chat: greeting, tea card with quote and action buttons*
+
+#### Command menu
+![Menu](./assets/screenshots/menu.png)  
+*Command menu: New tea, Random tea, Statistics, Achievements, Cancel*
+
+#### Tea card (close-up)
+![Tea card](./assets/screenshots/tea-card.png)  
+*Tea card with quote and navigation buttons*
+
+#### Achievements
+![Achievements](./assets/screenshots/achievements.png)  
+*User achievements: Sugar cube, Tea leaf, Tea bag*
+
+#### Edit profile data
+![Edit data](./assets/screenshots/edit-data.png)  
+*Edit profile data: age, gender, favorite tea, bot rating*
+
 ### Installation
 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/agile-tea-bot.git
+   git clone https://github.com/Sovinka20/agile-tea-bot.git
    cd agile-tea-bot
    ```
 
@@ -104,6 +129,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 Этот бот телеграмма создан для учебных целей в рамках курса "Практический курс Agile-лидера". Он предоставляет интерактивные функции, которые помогают студентам изучать и практиковать Agile-методологии.
 
+> ⚠️ **Бот не развёрнут на сервере.**  
+> Требуется рефакторинг в части работы с персональными данными: в текущем виде бот собирает и хранит данные пользователей (возраст, пол, предпочтения), что требует приведения в соответствие с требованиями законодательства РФ о персональных данных (152-ФЗ) перед публичным развёртыванием.
+
 ### Функционал
 
 - Интерактивные кнопки для выбора различных тем.
@@ -113,12 +141,38 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Настраиваемые команды для различных Agile-практик.
 - Поддержка нескольких языков (если применимо).
 
+### Скриншоты
+
+#### Профиль бота
+![Профиль бота](./assets/screenshots/bot-profile.png)  
+*Профиль бота с описанием и списком команд*
+
+#### Чат с карточкой чая
+![Чат с ботом](./assets/screenshots/bot-chat.png)  
+*Чат: приветствие, карточка чая с цитатой и кнопками*
+
+#### Меню команд
+![Меню](./assets/screenshots/menu.png)  
+*Меню команд: Новый чай, Случайный чай, Статистика, Ачивки, Отмена*
+
+#### Карточка чая (крупным планом)
+![Карточка чая](./assets/screenshots/tea-card.png)  
+*Карточка чая с цитатой и кнопками навигации*
+
+#### Ачивки
+![Ачивки](./assets/screenshots/achievements.png)  
+*Достижения пользователя: Кусочек сахара, Чайный листик, Чайный пакетик*
+
+#### Изменение данных профиля
+![Изменение данных](./assets/screenshots/edit-data.png)  
+*Изменение данных: возраст, пол, любимый чай, оценка бота*
+
 ### Установка
 
 1. Клонируйте репозиторий:
 
    ```bash
-   git clone https://github.com/yourusername/agile-tea-bot.git
+   git clone https://github.com/Sovinka20/agile-tea-bot.git
    cd agile-tea-bot
    ```
 
@@ -160,22 +214,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ### Лицензия
 
 Этот проект лицензирован под MIT License. Подробности смотрите в файле [LICENSE](LICENSE).
-
----
-
-### Дополнительные разделы (по желанию)
-
-#### Поддержка
-
-Если у вас возникли вопросы или проблемы, пожалуйста, создайте [issue](https://github.com/yourusername/agile-tea-bot/issues) на GitHub.
-
-#### Благодарности
-
-- Спасибо [название библиотеки/фреймворка] за предоставленные инструменты.
-- Спасибо [имя] за вклад в проект.
-
-#### История изменений
-
-Смотрите [CHANGELOG.md](CHANGELOG.md) для подробной информации об изменениях в проекте.
 
 ---
